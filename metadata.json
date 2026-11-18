@@ -1,0 +1,6 @@
+{
+  "name": "SheepFeed Farm Manager - ระบบบันทึกข้อมูลแกะและคำนวณสูตรอาหาร",
+  "description": "ระบบจัดเก็บข้อมูลแกะ บันทึกประวัติและผลผลิต พร้อมโปรแกรมคำนวณสูตรอาหารสัตว์เคี้ยวเอื้องตามมาตรฐานโภชนะแกะ และจำลองรูปแบบ AppSheet สำหรับงานฟาร์ม",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
