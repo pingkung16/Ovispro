@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "SheepFeed Farm Manager - ระบบบันทึกข้อมูลแกะและสูตรอาหาร",
+  "short_name": "SheepFeed",
+  "description": "เว็บแอปพลิเคชันสำหรับเจ้าของฟาร์มแกะ บันทึกข้อมูลแกะรายตัว คำนวณสูตรอาหารตามมาตรฐานโภชนะ NRC และจัดการต้นทุนอาหารสัตว์",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#064e3b",
+  "theme_color": "#065f46",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

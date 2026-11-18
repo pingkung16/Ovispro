@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sheepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#sheepGrad)" />
+  <circle cx="256" cy="256" r="190" fill="#ffffff" fill-opacity="0.1" />
+  
+  <!-- Sheep body cloud -->
+  <circle cx="256" cy="270" r="100" fill="#ffffff" />
+  <circle cx="190" cy="250" r="75" fill="#ffffff" />
+  <circle cx="322" cy="250" r="75" fill="#ffffff" />
+  <circle cx="205" cy="320" r="70" fill="#ffffff" />
+  <circle cx="307" cy="320" r="70" fill="#ffffff" />
+  <circle cx="256" cy="340" r="75" fill="#ffffff" />
+  
+  <!-- Sheep legs -->
+  <rect x="210" y="380" width="22" height="50" rx="11" fill="#334155" />
+  <rect x="280" y="380" width="22" height="50" rx="11" fill="#334155" />
+
+  <!-- Sheep head -->
+  <ellipse cx="256" cy="225" rx="55" ry="65" fill="#1e293b" />
+  <ellipse cx="190" cy="200" rx="30" ry="16" transform="rotate(-25 190 200)" fill="#1e293b" />
+  <ellipse cx="322" cy="200" rx="30" ry="16" transform="rotate(25 322 200)" fill="#1e293b" />
+  
+  <!-- Head wool cap -->
+  <circle cx="256" cy="170" r="32" fill="#ffffff" />
+  <circle cx="235" cy="175" r="24" fill="#ffffff" />
+  <circle cx="277" cy="175" r="24" fill="#ffffff" />
+  
+  <!-- Eyes -->
+  <ellipse cx="238" cy="220" rx="6" ry="8" fill="#ffffff" />
+  <circle cx="238" cy="222" r="4" fill="#0f172a" />
+  <ellipse cx="274" cy="220" rx="6" ry="8" fill="#ffffff" />
+  <circle cx="274" cy="222" r="4" fill="#0f172a" />
+  
+  <!-- Wheat / Nutrition emblem in corner -->
+  <g transform="translate(350, 80) scale(0.9)">
+    <circle cx="40" cy="40" r="45" fill="url(#goldGrad)" stroke="#ffffff" stroke-width="6" />
+    <path d="M40 20 L40 60 M40 28 L30 35 M40 38 L50 45 M40 48 L30 55" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
+  </g>
+</svg>

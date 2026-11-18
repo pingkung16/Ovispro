@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    background-color: #FAF6EE;
+    color: #24201B;
+  }
+
+  body {
+    font-family: 'Sarabun', 'Prompt', system-ui, -apple-system, sans-serif;
+    background-color: #FAF6EE;
+    color: #24201B;
+    line-height: 1.6;
+    background-image:
+      radial-gradient(at 12% 10%, rgba(74, 50, 31, 0.07) 0px, transparent 52%),
+      radial-gradient(at 88% 85%, rgba(30, 63, 43, 0.08) 0px, transparent 52%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Prompt', 'Sarabun', system-ui, sans-serif;
+    text-wrap: balance;
+  }
+}
+
+.font-brand {
+  font-family: 'Lora', 'Prompt', Georgia, serif;
+}
+
+.font-mono,
+.tabular-nums {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle dark walnut timber texture for ranch fence & card trims */
+.wood-grain-surface {
+  background-color: #4A321F;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 248, 236, 0.04) 0px,
+      rgba(255, 248, 236, 0.04) 2px,
+      transparent 2px,
+      transparent 14px
+    ),
+    linear-gradient(180deg, #5A3D27 0%, #3E2817 100%);
+}
+
+.wood-rail-divider {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #3B2616 0%, #6D4B2F 50%, #3B2616 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 245, 230, 0.25), 0 2px 4px rgba(59, 38, 22, 0.2);
+}
+
+/* Tactile 3D raised / embossed module button card */
+.tactile-module-card {
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 160ms ease;
+  box-shadow:
+    0 7px 0 #3B2616,
+    0 14px 24px -10px rgba(59, 38, 22, 0.28);
+}
+
+.tactile-module-card:hover {
+  transform: translateY(-5px);
+  box-shadow:
+    0 12px 0 #3B2616,
+    0 22px 32px -12px rgba(30, 63, 43, 0.32);
+}
+
+.tactile-module-card:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 3px 0 #3B2616,
+    0 6px 12px -4px rgba(59, 38, 22, 0.22);
+}
+
+/* Tactile raised 3D action button */
+.tactile-cta-btn {
+  transition:
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 150ms ease;
+  box-shadow:
+    0 5px 0 #26170C,
+    0 10px 20px -6px rgba(38, 23, 12, 0.45);
+}
+
+.tactile-cta-btn:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 0 #26170C,
+    0 16px 26px -8px rgba(38, 23, 12, 0.5);
+}
+
+.tactile-cta-btn:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 #26170C,
+    0 4px 10px -4px rgba(38, 23, 12, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tactile-module-card,
+  .tactile-cta-btn,
+  .tactile-pink-btn,
+  .onlysheeps-float {
+    transition: none;
+    animation: none;
+  }
+  .tactile-module-card:hover,
+  .tactile-module-card:active,
+  .tactile-cta-btn:hover,
+  .tactile-cta-btn:active,
+  .tactile-pink-btn:hover,
+  .tactile-pink-btn:active {
+    transform: none;
+  }
+}
+
+/* Onlysheeps Romantic Pink Tactile Button & Floating Hearts */
+.tactile-pink-btn {
+  transition:
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 150ms ease;
+  box-shadow:
+    0 5px 0 #9D174D,
+    0 12px 24px -6px rgba(219, 39, 119, 0.45);
+}
+
+.tactile-pink-btn:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 0 #9D174D,
+    0 18px 28px -6px rgba(219, 39, 119, 0.55);
+}
+
+.tactile-pink-btn:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 #9D174D,
+    0 5px 10px -4px rgba(157, 23, 77, 0.4);
+}
+
+@keyframes onlysheepsFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(4deg);
+  }
+}
+
+.onlysheeps-float {
+  animation: onlysheepsFloat 4.2s ease-in-out infinite;
+}
+
+/* Custom warm earth-tone scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F3ECE0;
+}
+::-webkit-scrollbar-thumb {
+  background: #C8B89E;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8B5E34;
+}
