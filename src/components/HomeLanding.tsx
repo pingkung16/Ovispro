@@ -28,6 +28,7 @@ import woodenBarnImg from '../assets/images/pasture_wooden_barn_1794762559623.jp
 import onlysheepsCupidLogo from '../assets/images/onlysheeps_cupid_logo_1794824689407.jpg';
 import type { FarmProfile, PublicPlatformOverview } from '../types/sheep';
 import type { FarmWorkspaceData } from '../utils/api';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { FarmAuthPanel } from './FarmAuthPanel';
 
 interface HomeLandingProps {
@@ -338,7 +339,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   </button>
                 ) : (
                   <span className="text-[#BBF7D0]">
-                    {cloudSyncConfigured ? 'ซิงค์ทุกเครื่อง + Google Sheet กลางแล้ว' : 'ซิงค์ระบบกลางแล้ว'}
+                    {isSupabaseConfigured()
+                      ? 'ซิงค์ Supabase Realtime ทุกเครื่องแล้ว'
+                      : cloudSyncConfigured
+                      ? 'ซิงค์ทุกเครื่อง + Google Sheet กลางแล้ว'
+                      : 'ซิงค์ระบบกลางแล้ว'}
                   </span>
                 )}
               </div>

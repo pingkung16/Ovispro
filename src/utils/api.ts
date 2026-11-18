@@ -19,6 +19,25 @@ import type {
   SyncStateResponse,
   WebFormSubmission,
 } from '../types/sheep';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  makeSupabaseSessionToken,
+  parseSupabaseFarmIdFromToken,
+  sbCreateOrRefreshShareSnapshot,
+  sbDeleteOnlysheepsListing,
+  sbFetchFarmWorkspace,
+  sbFetchLiveShareReport,
+  sbFetchOnlysheepsFeed,
+  sbFetchOwnerMasterSheet,
+  sbFetchPublicOverview,
+  sbFetchWebFormRecords,
+  sbLoginFarmAccount,
+  sbPublishToOnlysheeps,
+  sbRegisterFarmAccount,
+  sbResetFarmData,
+  sbSaveFarmWorkspace,
+  sbSubmitWebFormRecord,
+} from './supabaseDb';
 
 const AUTH_TOKEN_KEY = 'ovispro_farm_auth_token_v1';
 
@@ -97,7 +116,18 @@ export interface FarmWorkspaceData {
   matches: OnlysheepsMatchRecord[];
 }
 
+function getAuthenticatedSupabaseFarmId(): string {
+  const farmId = parseSupabaseFarmIdFromToken(getStoredAuthToken());
+  if (!farmId) {
+    throw new ApiError('กรุณาเข้าสู่ระบบฟาร์มของคุณก่อนดูหรือบันทึกข้อมูลส่วนตัว', 401);
+  }
+  return farmId;
+}
+
 export async function fetchPublicOverview(): Promise<PublicPlatformOverview> {
+  if (isSupabaseConfigured()) {
+    return sbFetchPublicOverview();
+  }
   return apiFetch<PublicPlatformOverview>('/api/public/overview');
 }
 
@@ -130,6 +160,11 @@ export async function loginFarmAccount(
   username: string,
   password: string
 ): Promise<{ token: string; profile: FarmProfile; workspace?: FarmWorkspaceData }> {
+  if (isSupabaseConfigured()) {
+    const res = await sbLoginFarmAccount(username, password);
+    setStoredAuthToken(res.token);
+    return res;
+  }
   const res = await apiFetch<{ token: string; profile: FarmProfile; workspace?: FarmWorkspaceData }>(
     '/api/auth/login',
     {
@@ -150,6 +185,11 @@ export async function registerFarmAccount(payload: {
   contact: string;
   breedFocus: string;
 }): Promise<{ token: string; profile: FarmProfile; workspace?: FarmWorkspaceData }> {
+  if (isSupabaseConfigured()) {
+    const res = await sbRegisterFarmAccount(payload);
+    setStoredAuthToken(res.token);
+    return res;
+  }
   const res = await apiFetch<{ token: string; profile: FarmProfile; workspace?: FarmWorkspaceData }>(
     '/api/auth/register',
     {
@@ -165,6 +205,16 @@ export async function restoreMissingFarmSession(
   farmId: string,
   workspace: FarmWorkspaceData
 ): Promise<{ token: string; workspace: FarmWorkspaceData }> {
+  if (isSupabaseConfigured()) {
+    try {
+      const existing = await sbFetchFarmWorkspace(farmId);
+      const token = makeSupabaseSessionToken(farmId);
+      setStoredAuthToken(token);
+      return { token, workspace: existing };
+    } catch {
+      throw new ApiError('ไม่พบบัญชีฟาร์มในระบบ กรุณาเข้าสู่ระบบใหม่', 401);
+    }
+  }
   const res = await apiFetch<{ token: string; workspace: FarmWorkspaceData }>(
     '/api/farm/restore-session',
     {
@@ -177,15 +227,28 @@ export async function restoreMissingFarmSession(
 }
 
 export async function logoutFarmAccount(): Promise<void> {
-  try {
-    await apiFetch('/api/auth/logout', { method: 'POST' });
-  } catch {
-    // ignore
+  if (!isSupabaseConfigured()) {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
   }
   setStoredAuthToken(null);
 }
 
 export async function fetchMyFarmData(): Promise<FarmWorkspaceData> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    try {
+      return await sbFetchFarmWorkspace(farmId);
+    } catch (err) {
+      throw new ApiError(
+        err instanceof Error ? err.message : 'ไม่พบบัญชีฟาร์มในระบบ',
+        401
+      );
+    }
+  }
   return apiFetch<FarmWorkspaceData>('/api/farm/data');
 }
 
@@ -201,6 +264,10 @@ export async function saveMyFarmData(
   },
   options: { keepalive?: boolean } = {}
 ): Promise<{ ok: boolean; profile: FarmProfile; pens: Pen[] }> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    return sbSaveFarmWorkspace(farmId, payload);
+  }
   const serialized = JSON.stringify(payload);
   const useKeepalive = Boolean(options.keepalive) && isPayloadWithinKeepaliveLimit(serialized);
   return apiFetch('/api/farm/data', {
@@ -211,12 +278,19 @@ export async function saveMyFarmData(
 }
 
 export async function resetMyFarmData(): Promise<FarmWorkspaceData> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    return sbResetFarmData(farmId);
+  }
   return apiFetch<FarmWorkspaceData>('/api/farm/reset', {
     method: 'POST',
   });
 }
 
 export async function fetchOnlysheepsFeed(): Promise<OnlysheepsListing[]> {
+  if (isSupabaseConfigured()) {
+    return sbFetchOnlysheepsFeed();
+  }
   const res = await apiFetch<{ listings: OnlysheepsListing[] }>('/api/onlysheeps/feed');
   return res.listings;
 }
@@ -224,6 +298,10 @@ export async function fetchOnlysheepsFeed(): Promise<OnlysheepsListing[]> {
 export async function publishToOnlysheeps(
   listingPayload: Partial<Sheep> & { name: string }
 ): Promise<OnlysheepsListing> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    return sbPublishToOnlysheeps(farmId, listingPayload);
+  }
   const res = await apiFetch<{ listing: OnlysheepsListing }>('/api/onlysheeps/listings', {
     method: 'POST',
     body: JSON.stringify(listingPayload),
@@ -232,6 +310,11 @@ export async function publishToOnlysheeps(
 }
 
 export async function deleteOnlysheepsListing(listingId: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    await sbDeleteOnlysheepsListing(farmId, listingId);
+    return;
+  }
   await apiFetch(`/api/onlysheeps/listings/${encodeURIComponent(listingId)}`, {
     method: 'DELETE',
   });
@@ -241,6 +324,25 @@ export async function syncFarmToGoogleSheet(payload: {
   sheetUrl?: string;
   appsScriptWebhookUrl: string;
 }): Promise<{ ok: boolean; lastSyncedAt: string; syncedTabs: number; profile: FarmProfile }> {
+  if (isSupabaseConfigured()) {
+    const farmId = getAuthenticatedSupabaseFarmId();
+    const lastSyncedAt = new Date().toISOString();
+    const res = await sbSaveFarmWorkspace(farmId, {
+      profile: {
+        googleSheetConfig: {
+          sheetUrl: payload.sheetUrl,
+          appsScriptWebhookUrl: payload.appsScriptWebhookUrl,
+          lastSyncedAt,
+        },
+      },
+    });
+    return {
+      ok: true,
+      lastSyncedAt,
+      syncedTabs: 5,
+      profile: res.profile,
+    };
+  }
   return apiFetch('/api/farm/sheets-sync', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -253,6 +355,10 @@ export async function createOrRefreshShareSnapshot(payload?: {
   rations?: FormulatedRation[];
   logs?: FarmLog[];
 }): Promise<{ shareId: string; updatedAt: string; report: LiveShareReport }> {
+  if (isSupabaseConfigured()) {
+    const farmId = parseSupabaseFarmIdFromToken(getStoredAuthToken());
+    return sbCreateOrRefreshShareSnapshot(farmId, payload);
+  }
   return apiFetch('/api/share/snapshot', {
     method: 'POST',
     body: JSON.stringify(payload || {}),
@@ -260,6 +366,9 @@ export async function createOrRefreshShareSnapshot(payload?: {
 }
 
 export async function fetchLiveShareReport(shareId: string): Promise<LiveShareReport> {
+  if (isSupabaseConfigured()) {
+    return sbFetchLiveShareReport(shareId);
+  }
   const res = await apiFetch<{ report: LiveShareReport }>(
     `/api/share/${encodeURIComponent(shareId)}`
   );
@@ -332,6 +441,12 @@ export async function logoutAppOwner(): Promise<void> {
 }
 
 export async function fetchOwnerMasterSheet(): Promise<OwnerMasterSheetData> {
+  if (isSupabaseConfigured()) {
+    if (!getStoredOwnerToken()) {
+      throw new Error('พื้นที่นี้สงวนสิทธิ์เฉพาะเจ้าของแอปพลิเคชันเท่านั้น (App Owner Only)');
+    }
+    return sbFetchOwnerMasterSheet('tierraporn.oga@student.mahidol.edu');
+  }
   return ownerFetch<OwnerMasterSheetData>('/api/owner/master-sheet');
 }
 
@@ -365,6 +480,9 @@ export async function fetchWebFormRecords(): Promise<{
   sheetSyncConfigured: boolean;
   apiKeyConfigured: boolean;
 }> {
+  if (isSupabaseConfigured()) {
+    return sbFetchWebFormRecords();
+  }
   return apiFetch('/api/forms/records');
 }
 
@@ -386,9 +504,13 @@ export async function submitWebFormRecord(payload: {
   sheetSyncConfigured: boolean;
   sheetError?: string;
 }> {
+  if (isSupabaseConfigured()) {
+    return sbSubmitWebFormRecord(payload);
+  }
   return apiFetch('/api/forms/records', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
+
 

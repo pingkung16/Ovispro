@@ -10,6 +10,14 @@ import type {
   PublicPlatformOverview,
   WebFormSubmission,
 } from '../types/sheep';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
+import {
+  getLastSupabaseLocalWriteAt,
+  sbFetchFarmWorkspace,
+  sbFetchOnlysheepsFeed,
+  sbFetchPublicOverview,
+  sbFetchWebFormRecords,
+} from './supabaseDb';
 import {
   fetchSyncState,
   getClientSessionId,
@@ -78,8 +86,9 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
 
+  const supabaseEnabled = isSupabaseConfigured();
   const [isWsConnected, setIsWsConnected] = useState(false);
-  const [cloudSyncConfigured, setCloudSyncConfigured] = useState(false);
+  const [cloudSyncConfigured, setCloudSyncConfigured] = useState(supabaseEnabled);
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastPublicRevRef = useRef<number>(0);
@@ -100,6 +109,7 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
 
   const sendFarmSaveOverSocket = useCallback(
     (payload: Partial<PrivateFarmWorkspacePayload>, seq?: number): boolean => {
+      if (supabaseEnabled) return false;
       const token = getStoredAuthToken();
       if (!token) return false;
       return sendSocketMessage({
@@ -110,12 +120,214 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
         payload,
       });
     },
-    [sendSocketMessage]
+    [sendSocketMessage, supabaseEnabled]
   );
 
-  // Adaptive HTTP Fallback Sync (handles mobile/LINE WebViews & cross-instance polling)
+  // =========================================================================
+  // SUPABASE REALTIME SUBSCRIPTIONS (Public Hub + Active Private Farm)
+  // =========================================================================
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!supabaseEnabled || typeof window === 'undefined') return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    setCloudSyncConfigured(true);
+    let disposed = false;
+    let publicRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let farmRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedulePublicRefresh = (
+      reason: PublicOverviewChangeReason,
+      farmName?: string
+    ) => {
+      if (publicRefreshTimer) clearTimeout(publicRefreshTimer);
+      publicRefreshTimer = setTimeout(async () => {
+        if (disposed) return;
+        try {
+          const overview = await sbFetchPublicOverview();
+          if (disposed) return;
+          const isLocalWrite = Date.now() - getLastSupabaseLocalWriteAt() < 1800;
+          callbacksRef.current.onPublicOverviewUpdated(overview, {
+            reason,
+            farmName,
+            originClientId: isLocalWrite ? getClientSessionId() : undefined,
+          });
+        } catch {
+          // ignore transient errors
+        }
+      }, 250);
+    };
+
+    const publicChannel = supabase
+      .channel('ovispro-public-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'farms' },
+        payload => {
+          if (disposed) return;
+          const row = (payload.new || payload.old) as { farm_name?: string } | null;
+          const reason: PublicOverviewChangeReason =
+            payload.eventType === 'INSERT' ? 'farm_registered' : 'herd_updated';
+          schedulePublicRefresh(reason, row?.farm_name);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'onlysheeps_listings' },
+        payload => {
+          if (disposed) return;
+          const isLocalWrite = Date.now() - getLastSupabaseLocalWriteAt() < 1800;
+          const originClientId = isLocalWrite ? getClientSessionId() : undefined;
+
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const rec = payload.new as { payload?: OnlysheepsListing };
+            if (rec.payload) {
+              callbacksRef.current.onOnlysheepsCreated(rec.payload, { originClientId });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const oldRec = payload.old as {
+              listing_id?: string;
+              payload?: OnlysheepsListing;
+            };
+            if (oldRec.listing_id) {
+              callbacksRef.current.onOnlysheepsDeleted(oldRec.listing_id, {
+                listingName: oldRec.payload?.name,
+                farmName: oldRec.payload?.farmName,
+                originClientId,
+              });
+            }
+          } else {
+            void sbFetchOnlysheepsFeed()
+              .then(list => {
+                if (!disposed) callbacksRef.current.onOnlysheepsReplaced?.(list);
+              })
+              .catch(() => {});
+          }
+          schedulePublicRefresh('onlysheeps_changed');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'web_form_submissions' },
+        () => {
+          if (disposed) return;
+          void sbFetchWebFormRecords()
+            .then(res => {
+              if (!disposed) callbacksRef.current.onWebFormRecordsSync?.(res.records);
+            })
+            .catch(() => {});
+        }
+      )
+      .subscribe(status => {
+        if (!disposed) {
+          setIsWsConnected(status === 'SUBSCRIBED');
+        }
+      });
+
+    const activeFarmId = options.activeFarmId;
+    const scheduleFarmRefresh = () => {
+      if (!activeFarmId) return;
+      if (Date.now() - getLastSupabaseLocalWriteAt() < 1800) {
+        return;
+      }
+      if (farmRefreshTimer) clearTimeout(farmRefreshTimer);
+      farmRefreshTimer = setTimeout(async () => {
+        if (disposed || !activeFarmId) return;
+        if (Date.now() - getLastSupabaseLocalWriteAt() < 1800) return;
+        try {
+          const workspace = await sbFetchFarmWorkspace(activeFarmId);
+          if (disposed) return;
+          callbacksRef.current.onFarmWorkspaceUpdated(workspace, {
+            farmId: activeFarmId,
+            updatedAt: workspace.profile.updatedAt || new Date().toISOString(),
+          });
+        } catch {
+          // ignore transient sync error
+        }
+      }, 350);
+    };
+
+    const farmChannel = activeFarmId
+      ? supabase
+          .channel(`ovispro-farm-realtime:${activeFarmId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'sheep',
+              filter: `farm_id=eq.${activeFarmId}`,
+            },
+            scheduleFarmRefresh
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'farm_logs',
+              filter: `farm_id=eq.${activeFarmId}`,
+            },
+            scheduleFarmRefresh
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'farm_pens',
+              filter: `farm_id=eq.${activeFarmId}`,
+            },
+            scheduleFarmRefresh
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'feed_ingredients',
+              filter: `farm_id=eq.${activeFarmId}`,
+            },
+            scheduleFarmRefresh
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'formulated_rations',
+              filter: `farm_id=eq.${activeFarmId}`,
+            },
+            scheduleFarmRefresh
+          )
+          .subscribe()
+      : null;
+
+    const handleVisibilityOrOnline = () => {
+      if (document.visibilityState === 'visible') {
+        callbacksRef.current.onReconnectResync?.();
+        if (activeFarmId) scheduleFarmRefresh();
+      }
+    };
+    window.addEventListener('online', handleVisibilityOrOnline);
+    document.addEventListener('visibilitychange', handleVisibilityOrOnline);
+
+    return () => {
+      disposed = true;
+      if (publicRefreshTimer) clearTimeout(publicRefreshTimer);
+      if (farmRefreshTimer) clearTimeout(farmRefreshTimer);
+      window.removeEventListener('online', handleVisibilityOrOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityOrOnline);
+      void supabase.removeChannel(publicChannel);
+      if (farmChannel) {
+        void supabase.removeChannel(farmChannel);
+      }
+    };
+  }, [supabaseEnabled, options.activeFarmId]);
+
+  // Adaptive HTTP Fallback Sync (handles mobile/LINE WebViews & cross-instance polling when not using Supabase)
+  useEffect(() => {
+    if (supabaseEnabled || typeof window === 'undefined') return;
 
     let disposed = false;
     let inFlight = false;
@@ -191,11 +403,11 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
       disposed = true;
       clearInterval(pollTimer);
     };
-  }, [isWsConnected]);
+  }, [isWsConnected, supabaseEnabled]);
 
   // Manage WebSocket connection lifecycle, heartbeat, exponential backoff, and online/visibility resync
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (supabaseEnabled || typeof window === 'undefined') return;
 
     let disposed = false;
     let reconnectAttempt = 0;
@@ -458,10 +670,11 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
         wsRef.current = null;
       }
     };
-  }, []);
+  }, [supabaseEnabled]);
 
   // Re-bind private farm room authentication immediately on farm login / logout
   useEffect(() => {
+    if (supabaseEnabled) return;
     const clientId = getClientSessionId();
     const token = getStoredAuthToken();
     lastKnownServerRevRef.current = 0;
@@ -478,10 +691,11 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions): {
         type: 'auth:logout',
       });
     }
-  }, [options.activeFarmId, sendSocketMessage]);
+  }, [options.activeFarmId, sendSocketMessage, supabaseEnabled]);
 
   // Re-bind App Owner room authentication immediately on owner login / logout
   useEffect(() => {
+    if (supabaseEnabled) return;
     const clientId = getClientSessionId();
     const ownerToken = getStoredOwnerToken();
     lastKnownServerRevRef.current = 0;
