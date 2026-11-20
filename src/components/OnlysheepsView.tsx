@@ -21,7 +21,7 @@ import {
   MessageCircleHeart,
   CheckCircle2,
   Trash2,
-  Lock,
+  LogIn,
 } from 'lucide-react';
 import type {
   FarmProfile,
@@ -535,7 +535,7 @@ export const OnlysheepsView: React.FC<OnlysheepsViewProps> = ({
               onClick={handleOpenPublishModal}
               className="tactile-pink-btn min-h-[44px] bg-gradient-to-r from-[#E11D48] via-[#DB2777] to-[#EC4899] text-white px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
             >
-              {activeFarmProfile ? <Plus className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {activeFarmProfile ? <Plus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
               <span>
                 {activeFarmProfile
                   ? `ส่งแกะของ ${activeFarmProfile.farmName} ลง Onlysheeps`

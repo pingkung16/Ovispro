@@ -5,8 +5,7 @@
 
 import type { FarmLog, FormulatedRation, LiveShareReport, Pen } from '../types/sheep';
 
-export const DEFAULT_SHARED_APP_URL =
-  'https://ais-pre-qrjdvrntkqves6dcxlicos-821895887617.asia-northeast1.run.app';
+export const DEFAULT_SHARED_APP_URL = 'https://ovispro-fawn.vercel.app/';
 
 /**
  * Ensures QR codes and share links never point to the developer-only `ais-dev-*` preview URL,

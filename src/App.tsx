@@ -20,8 +20,6 @@ import { SharePublicModal } from './components/SharePublicModal';
 import { FarmAuthPanel } from './components/FarmAuthPanel';
 import { FarmGoogleSheetModal } from './components/FarmGoogleSheetModal';
 import { LiveShareReportView } from './components/LiveShareReportView';
-import { OwnerMasterSheetModal } from './components/OwnerMasterSheetModal';
-import { WebFormGuideModal } from './components/WebFormGuideModal';
 import {
   DEFAULT_PENS_TEMPLATE,
   DEFAULT_INGREDIENTS_TEMPLATE,
@@ -37,8 +35,6 @@ import type {
   PublicPlatformOverview,
   OnlysheepsListing,
   OnlysheepsMatchRecord,
-  OwnerMasterSheetData,
-  WebFormSubmission,
 } from './types/sheep';
 import {
   ApiError,
@@ -48,7 +44,6 @@ import {
   saveMyFarmData,
   resetMyFarmData,
   fetchOnlysheepsFeed,
-  fetchWebFormRecords,
   publishToOnlysheeps,
   deleteOnlysheepsListing,
   logoutFarmAccount,
@@ -56,7 +51,6 @@ import {
   isPayloadWithinKeepaliveLimit,
   getClientSessionId,
   getStoredAuthToken,
-  getStoredOwnerToken,
   setStoredAuthToken,
 } from './utils/api';
 import {
@@ -75,9 +69,9 @@ import {
 } from './utils/realtime';
 import { useRealtimeSync } from './utils/useRealtimeSync';
 import { RealtimeToastStack, type RealtimeToastItem } from './components/RealtimeToastStack';
-import { Globe, Lock, X } from 'lucide-react';
+import { Globe, Sparkles, X } from 'lucide-react';
 
-const PUBLIC_APP_URL = 'https://ais-pre-qrjdvrntkqves6dcxlicos-821895887617.asia-northeast1.run.app';
+const PUBLIC_APP_URL = 'https://ovispro-fawn.vercel.app/';
 const GUEST_MATCHES_KEY = 'onlysheeps_guest_matches_v2';
 
 export default function App() {
@@ -115,14 +109,6 @@ export default function App() {
   const [isLabGuideOpen, setIsLabGuideOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isGoogleSheetModalOpen, setIsGoogleSheetModalOpen] = useState<boolean>(false);
-  const [isOwnerSheetOpen, setIsOwnerSheetOpen] = useState<boolean>(false);
-  const [isWebFormOpen, setIsWebFormOpen] = useState<boolean>(false);
-  const [webFormInitialTab, setWebFormInitialTab] = useState<'form' | 'schema' | 'security'>('form');
-  const [webFormRecords, setWebFormRecords] = useState<WebFormSubmission[]>([]);
-  const [isOwnerAuthenticated, setIsOwnerAuthenticated] = useState<boolean>(() =>
-    Boolean(getStoredOwnerToken())
-  );
-  const [liveOwnerData, setLiveOwnerData] = useState<OwnerMasterSheetData | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isHydratingFarm, setIsHydratingFarm] = useState<boolean>(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'saving' | 'pending'>('synced');
@@ -190,17 +176,13 @@ export default function App() {
 
   const refreshPublicHub = useCallback(async () => {
     try {
-      const [overview, feed, formsRes] = await Promise.all([
+      const [overview, feed] = await Promise.all([
         fetchPublicOverview(),
         fetchOnlysheepsFeed(),
-        fetchWebFormRecords().catch(() => null),
       ]);
       prevOverviewRef.current = overview;
       setPublicOverview(overview);
       setOnlysheepsListings(feed);
-      if (formsRes?.records) {
-        setWebFormRecords(formsRes.records);
-      }
     } catch (err) {
       console.error('Failed to load public hub:', err);
     }
@@ -229,7 +211,7 @@ export default function App() {
 
   const { sendFarmSaveOverSocket, cloudSyncConfigured } = useRealtimeSync({
     activeFarmId: activeFarmProfile?.farmId ?? null,
-    isOwnerAuthenticated,
+    isOwnerAuthenticated: false,
     onPublicInit: useCallback(
       (overview, feed) => {
         const prev = prevOverviewRef.current;
@@ -359,15 +341,6 @@ export default function App() {
       },
       [activeFarmProfile]
     ),
-    onWebFormRecordsSync: useCallback(records => {
-      setWebFormRecords(records);
-    }, []),
-    onWebFormRecordCreated: useCallback(record => {
-      setWebFormRecords(prev => (prev.some(r => r.id === record.id) ? prev : [record, ...prev]));
-    }, []),
-    onOwnerMasterUpdated: useCallback(data => {
-      setLiveOwnerData(data);
-    }, []),
     onReconnectResync: useCallback(() => {
       if (saveSeqRef.current > flushedSeqRef.current) {
         void flushFarmSaveRef.current();
@@ -979,11 +952,6 @@ export default function App() {
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         onOpenGoogleSheet={() => setIsGoogleSheetModalOpen(true)}
-        onOpenOwnerMasterSheet={() => setIsOwnerSheetOpen(true)}
-        onOpenWebForm={() => {
-          setWebFormInitialTab('form');
-          setIsWebFormOpen(true);
-        }}
       />
 
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-5 sm:px-8 lg:px-10 py-8 sm:py-10">
@@ -1025,8 +993,8 @@ export default function App() {
           ) : (
             <div className="max-w-4xl mx-auto space-y-5">
               <div className="bg-[#FFF9EB] border border-[#E5D3B3] rounded-2xl p-4 text-xs sm:text-sm text-[#6E4826] flex items-center gap-2.5">
-                <Lock className="w-4 h-4 shrink-0" />
-                <span>โหมดเข้าคอกใช้สำหรับดูข้อมูลส่วนตัวของฟาร์ม กรุณาเข้าสู่ระบบฟาร์มของคุณก่อน</span>
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span>โหมดเข้าคอกช่วยให้ดูและจดข้อมูลฟาร์มบนมือถือได้สะดวก กรุณาเข้าสู่ระบบฟาร์มของคุณก่อน</span>
               </div>
               <FarmAuthPanel
                 farmDirectory={publicOverview?.farmDirectory ?? []}
@@ -1050,10 +1018,6 @@ export default function App() {
                 onAuthenticated={handleAuthenticated}
                 onLogout={handleLogout}
                 onOpenGoogleSheet={() => setIsGoogleSheetModalOpen(true)}
-                onOpenWebForm={() => {
-                  setWebFormInitialTab('form');
-                  setIsWebFormOpen(true);
-                }}
               />
             )}
 
@@ -1081,13 +1045,12 @@ export default function App() {
             {isPrivateTab && !activeFarmProfile && (
               <div className="max-w-4xl mx-auto space-y-6">
                 <div className="bg-[#FAF6EE] border-2 border-[#4A321F]/35 rounded-2xl p-5 flex items-start gap-3">
-                  <Lock className="w-5 h-5 text-[#1E3F2B] shrink-0 mt-0.5" />
+                  <Sparkles className="w-5 h-5 text-[#1E3F2B] shrink-0 mt-0.5" />
                   <div className="text-xs sm:text-sm text-[#5C5346]">
                     <strong className="text-[#1E3F2B] block text-sm sm:text-base">
-                      พื้นที่จัดการข้อมูลส่วนตัวของแต่ละฟาร์ม (Privacy Locked)
+                      เข้าสู่ระบบฟาร์มของคุณเพื่อจัดการข้อมูลในหมวดนี้
                     </strong>
-                    เพื่อความปลอดภัยของข้อมูลฝูงแกะ สูตรอาหาร ต้นทุน และสมุดบันทึกประจำวัน
-                    ฟาร์มอื่นไม่สามารถเข้ามาดูข้อมูลของกันและกันได้ กรุณาเข้าสู่ระบบบัญชีฟาร์มของคุณ หรือสมัครเปิดฟาร์มใหม่ด้านล่าง
+                    เข้าสู่ระบบด้วยบัญชีฟาร์มของคุณ หรือสมัครเปิดฟาร์มใหม่ได้ทันทีด้านล่าง เพื่อบันทึกทะเบียนแกะ สูตรอาหาร และต้นทุนฟาร์ม
                   </div>
                 </div>
 
@@ -1224,34 +1187,6 @@ export default function App() {
         />
       )}
 
-      <OwnerMasterSheetModal
-        isOpen={isOwnerSheetOpen}
-        onClose={() => setIsOwnerSheetOpen(false)}
-        liveOwnerData={liveOwnerData}
-        onOwnerAuthStateChange={isAuthed => {
-          setIsOwnerAuthenticated(isAuthed);
-          if (!isAuthed) {
-            setLiveOwnerData(null);
-          }
-        }}
-        onOpenArchitectGuide={tab => {
-          setIsOwnerSheetOpen(false);
-          setWebFormInitialTab(tab);
-          setIsWebFormOpen(true);
-        }}
-      />
-
-      <WebFormGuideModal
-        isOpen={isWebFormOpen}
-        onClose={() => setIsWebFormOpen(false)}
-        activeFarmProfile={activeFarmProfile}
-        records={webFormRecords}
-        onRecordsChange={setWebFormRecords}
-        isOwnerAuthenticated={isOwnerAuthenticated}
-        initialTab={webFormInitialTab}
-        onOpenOwnerSheet={() => setIsOwnerSheetOpen(true)}
-      />
-
       <RealtimeToastStack toasts={realtimeToasts} onDismiss={dismissToast} />
 
       <footer className="bg-[#F3ECE0] text-[#5C5346] text-xs py-7 px-6 border-t border-[#E5DEC9]">
@@ -1267,7 +1202,7 @@ export default function App() {
                 Ovispro
               </span>
               <span className="text-[#6E6254] ml-2">
-                — ระบบบริหารจัดการฟาร์มแกะขนหลายฟาร์ม (แยกพื้นที่ส่วนตัว + Onlysheeps)
+                — แพลตฟอร์มจัดการฟาร์มแกะขนครบวงจร คำนวณอาหารแม่นยำ พร้อมเครือข่าย Onlysheeps
               </span>
             </div>
           </div>
@@ -1278,26 +1213,6 @@ export default function App() {
             >
               <Globe className="w-3.5 h-3.5" />
               <span>แชร์ลิงก์ / QR Code</span>
-            </button>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={() => {
-                setWebFormInitialTab('form');
-                setIsWebFormOpen(true);
-              }}
-              className="text-[#1E3F2B] hover:text-[#9C6B3F] font-semibold cursor-pointer transition-colors"
-            >
-              ฟอร์มบันทึกข้อมูล
-            </button>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={() => setIsOwnerSheetOpen(true)}
-              className="text-[#4A321F] hover:text-[#1E3F2B] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <Lock className="w-3 h-3" />
-              <span>Google Sheet หลังบ้านเจ้าของแอป</span>
             </button>
             <span aria-hidden="true">·</span>
             <button

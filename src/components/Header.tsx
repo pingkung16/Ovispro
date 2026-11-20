@@ -17,7 +17,6 @@ import {
   TrendingUp,
   CalendarCheck2,
   Heart,
-  Lock,
   LogOut,
   LogIn,
   FileSpreadsheet,
@@ -40,8 +39,6 @@ interface HeaderProps {
   onOpenAuthModal: () => void;
   onLogout: () => void;
   onOpenGoogleSheet: () => void;
-  onOpenOwnerMasterSheet?: () => void;
-  onOpenWebForm?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -59,11 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuthModal,
   onLogout,
   onOpenGoogleSheet,
-  onOpenOwnerMasterSheet,
-  onOpenWebForm,
 }) => {
-  const isLocked = !activeFarmProfile;
-
   return (
     <header className="bg-[#FFFDF9]/95 backdrop-blur-md sticky top-0 z-40 border-b-2 border-[#4A321F]/25">
       {/* Forest Green & Dark Walnut Timber Utility Strip */}
@@ -71,11 +64,11 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-xs">
             <span className="font-medium text-[#EFE6D5]">
-              ระบบบริหารฟาร์มแกะขนหลายฟาร์ม (Multi-Farm Private Hub)
+              แพลตฟอร์มจัดการฟาร์มแกะขนครบวงจร (Smart Wool Sheep Hub)
             </span>
             <span className="hidden sm:inline text-[#A6B89D]" aria-hidden="true">·</span>
             <span className="hidden sm:inline text-[#D5E0D7]">
-              เครือข่าย {totalFarmsCount} ฟาร์ม · ข้อมูลภายในแยกเก็บเป็นส่วนตัว 100% ต่อฟาร์ม
+              เครือข่าย {totalFarmsCount} ฟาร์ม · บริหารฝูงแกะ คำนวณอาหาร และจับคู่พันธุ์
             </span>
           </div>
 
@@ -121,30 +114,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden md:inline">แชร์เว็บให้ฟาร์มอื่น</span>
             </button>
 
-            {onOpenOwnerMasterSheet && (
-              <button
-                type="button"
-                onClick={onOpenOwnerMasterSheet}
-                className="text-[#DFCBB3] hover:text-white font-medium flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap shrink-0"
-                title="เข้าสู่ระบบหลังบ้าน Google Sheet รวมทั้งแอป (เฉพาะเจ้าของแอปเท่านั้น)"
-              >
-                <Lock className="w-3 h-3 text-[#FDE68A]" />
-                <span className="hidden lg:inline">หลังบ้านเจ้าของแอป</span>
-              </button>
-            )}
-
-            {onOpenWebForm && (
-              <button
-                type="button"
-                onClick={onOpenWebForm}
-                className="text-[#BBF7D0] hover:text-white font-semibold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
-                title="ฟอร์มบันทึกข้อมูลเข้าสู่ระบบกลาง"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#4ADE80]" />
-                <span>ฟอร์มบันทึกข้อมูล</span>
-              </button>
-            )}
-
             <button
               onClick={onOpenLabGuide}
               className="bg-[#FAF6EE] hover:bg-[#F3ECE0] text-[#1E3F2B] px-3.5 py-1 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0 border-b-2 border-[#C5B197]"
@@ -180,13 +149,13 @@ export const Header: React.FC<HeaderProps> = ({
                 Ovispro
               </span>
               <span className="text-xs text-[#6E4826] font-semibold tracking-wide">
-                {activeFarmProfile ? activeFarmProfile.farmName : 'Multi-Farm Hub'}
+                {activeFarmProfile ? activeFarmProfile.farmName : 'Smart Sheep Hub'}
               </span>
             </div>
             <p className="text-xs text-[#6E6254] hidden sm:block mt-0.5">
               {activeFarmProfile
-                ? `พื้นที่ส่วนตัวของ ${activeFarmProfile.farmName} · 📍 ${activeFarmProfile.location}`
-                : 'ระบบศูนย์กลางสำหรับทุกฟาร์มแกะขน · กรุณาเข้าสู่ระบบฟาร์มเพื่อดูข้อมูลส่วนตัว'}
+                ? `${activeFarmProfile.farmName} · 📍 ${activeFarmProfile.location}`
+                : 'ผู้ช่วยดิจิทัลสำหรับคนเลี้ยงแกะขน · ทะเบียนแกะ คำนวณอาหาร และจับคู่พันธุ์'}
             </p>
           </div>
         </div>
@@ -213,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onOpenAuthModal}
               className="flex items-center gap-2 text-xs font-semibold text-[#1E3F2B] bg-[#EDF4EF] hover:bg-[#DCECE1] px-4 py-2 rounded-xl border border-[#C5DEC9] cursor-pointer transition-colors"
             >
-              <Lock className="w-3.5 h-3.5 text-[#2E6B47]" />
+              <LogIn className="w-3.5 h-3.5 text-[#2E6B47]" />
               <span>เข้าสู่ระบบฟาร์ม / สมัครฟาร์มใหม่</span>
             </button>
           )}
@@ -275,8 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Users className="w-4 h-4 shrink-0" />
-              <span>1. คอกและทะเบียนแกะ ({activeFarmProfile ? sheepCount : 'ส่วนตัว'})</span>
-              {isLocked && <Lock className="w-3 h-3 opacity-70" />}
+              <span>1. คอกและทะเบียนแกะ{activeFarmProfile ? ` (${sheepCount})` : ''}</span>
             </button>
 
             <button
@@ -301,7 +269,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Calculator className="w-4 h-4 shrink-0" />
               <span>3. คำนวณสูตรอาหาร</span>
-              {isLocked && <Lock className="w-3 h-3 opacity-70" />}
             </button>
 
             <button
@@ -314,7 +281,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Wheat className="w-4 h-4 shrink-0" />
               <span>4. วัตถุดิบอาหาร</span>
-              {isLocked && <Lock className="w-3 h-3 opacity-70" />}
             </button>
 
             <button
@@ -327,7 +293,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <CalendarCheck2 className="w-4 h-4 shrink-0" />
               <span>5. บันทึกกิจกรรม</span>
-              {isLocked && <Lock className="w-3 h-3 opacity-70" />}
             </button>
 
             <button
@@ -340,7 +305,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <TrendingUp className="w-4 h-4 shrink-0" />
               <span>สรุปต้นทุน-ผลผลิตขน</span>
-              {isLocked && <Lock className="w-3 h-3 opacity-70" />}
             </button>
 
             <button

@@ -15,8 +15,7 @@ import {
   ChevronDown,
   Leaf,
   Heart,
-  Lock,
-  ShieldCheck,
+  Sparkles,
   Building2,
   MapPin,
   LogOut,
@@ -44,7 +43,6 @@ interface HomeLandingProps {
   onAuthenticated: (profile: FarmProfile, workspace?: FarmWorkspaceData) => Promise<void> | void;
   onLogout: () => void;
   onOpenGoogleSheet: () => void;
-  onOpenWebForm?: () => void;
 }
 
 const BotanicalVineAccent: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -82,7 +80,6 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
   onAuthenticated,
   onLogout,
   onOpenGoogleSheet,
-  onOpenWebForm,
 }) => {
   const [heroLoaded, setHeroLoaded] = useState(true);
   const [barnLoaded, setBarnLoaded] = useState(true);
@@ -97,11 +94,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     {
       id: 'sheep',
       number: '01',
-      title: 'คอกและทะเบียนแกะขน (ส่วนตัว)',
-      metric: activeFarmProfile ? `${ownSheepCount} ตัวของฟาร์มเรา` : 'ล็อกเฉพาะเจ้าของฟาร์ม',
+      title: 'คอกและทะเบียนแกะขน',
+      metric: activeFarmProfile ? `${ownSheepCount} ตัวในฟาร์ม` : 'จัดระเบียบคอก A–D',
       description:
-        'จัดการรายชื่อแกะในคอก A–D, ประวัติวัคซีน FMD/แท้งติดต่อ, ถ่ายพยาธิ และบันทึกขนของฟาร์มคุณโดยเฉพาะ',
-      actionLabel: activeFarmProfile ? 'เปิดทะเบียนแกะของฟาร์ม' : 'เข้าสู่ระบบเพื่อเปิดทะเบียน',
+        'เช็กจำนวนแกะรายคอก ประวัติสายพันธุ์ วัคซีน ถ่ายพยาธิ และน้ำหนักขนได้ทันทีจากมือถือหรือคอมพิวเตอร์',
+      actionLabel: activeFarmProfile ? 'เปิดทะเบียนแกะของฟาร์ม' : 'เข้าใช้งานทะเบียนแกะ',
       icon: Users,
       tone: 'forest',
       requiresAuth: true,
@@ -110,9 +107,9 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       id: 'breeds',
       number: '02',
       title: 'แนะนำ 11 สายพันธุ์แกะขน',
-      metric: 'สาธารณะ · อันดับ 1–11 (Top 3 ★)',
+      metric: 'อันดับ 1–11 (Top 3 ★)',
       description:
-        'จัดอันดับสายพันธุ์แกะขนที่นิยมและให้ผลผลิตขนดีในไทย พร้อมข้อมูลไมครอน น้ำหนักขน และร้อยละการให้ลูก/คอก',
+        'เทียบจุดเด่น 11 สายพันธุ์แกะขนยอดนิยม พร้อมค่าไมครอน ปริมาณขนต่อปี และอัตราการให้ลูกเพื่อเลือกเลี้ยงให้เหมาะกับฟาร์ม',
       actionLabel: 'ดูอันดับสายพันธุ์แนะนำ',
       icon: Dna,
       tone: 'walnut',
@@ -121,11 +118,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     {
       id: 'calculator',
       number: '03',
-      title: 'คำนวณสูตรอาหารรายคอก (ส่วนตัว)',
-      metric: 'คำนวณเอง + เกณฑ์ %CP NRC',
+      title: 'คำนวณสูตรอาหารรายคอก',
+      metric: 'สูตรประหยัด · เกณฑ์ NRC',
       description:
-        'จัดสูตรอาหารหยาบ–ข้นเฉพาะฝูงของคุณเองอย่างอิสระ พร้อมการ์ดอ้างอิง % โปรตีน (CP) ตามช่วงวัยมาตรฐาน NRC',
-      actionLabel: activeFarmProfile ? 'คำนวณสูตรอาหารฟาร์ม' : 'เข้าสู่ระบบเพื่อคำนวณสูตร',
+        'ออกแบบสูตรอาหารหยาบ–ข้นให้ได้โปรตีน (%CP) และพลังงาน (%TDN) ตรงมาตรฐาน NRC ช่วยคุมต้นทุนต่อตัวต่อวันให้คุ้มที่สุด',
+      actionLabel: activeFarmProfile ? 'คำนวณสูตรอาหารฟาร์ม' : 'ลองคำนวณสูตรอาหาร',
       icon: Calculator,
       tone: 'forest',
       requiresAuth: true,
@@ -133,11 +130,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     {
       id: 'ingredients',
       number: '04',
-      title: 'คลังวัตถุดิบอาหารแกะ (ส่วนตัว)',
-      metric: activeFarmProfile ? `${ingredientsCount} ชนิดของฟาร์ม` : 'แยกราคาวัตถุดิบรายฟาร์ม',
+      title: 'คลังวัตถุดิบอาหารแกะ',
+      metric: activeFarmProfile ? `${ingredientsCount} ชนิด` : 'ปรับราคาตามท้องถิ่น',
       description:
-        'เพิ่มชื่อวัตถุดิบเพื่อให้ระบบคำนวณคุณค่าโภชนะ %DM/%CP/%TDN อัตโนมัติ พร้อมปรับราคาซื้อท้องถิ่นของฟาร์มคุณเอง',
-      actionLabel: activeFarmProfile ? 'เปิดคลังวัตถุดิบฟาร์ม' : 'เข้าสู่ระบบเปิดคลังวัตถุดิบ',
+        'รวมคลังวัตถุดิบอาหารสัตว์พร้อมค่าโภชนะ %DM / %CP / %TDN และปรับราคาซื้อตามจริงในพื้นที่ของคุณได้ทันที',
+      actionLabel: activeFarmProfile ? 'เปิดคลังวัตถุดิบฟาร์ม' : 'จัดการคลังวัตถุดิบ',
       icon: Wheat,
       tone: 'walnut',
       requiresAuth: true,
@@ -145,11 +142,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     {
       id: 'logs',
       number: '05',
-      title: 'บันทึกกิจกรรมฟาร์ม (ส่วนตัว)',
-      metric: activeFarmProfile ? `${logsCount} รายการของฟาร์ม` : 'สมุดบันทึกส่วนตัวของฟาร์ม',
+      title: 'บันทึกกิจกรรมฟาร์ม',
+      metric: activeFarmProfile ? `${logsCount} รายการ` : 'สมุดบันทึกดิจิทัล',
       description:
-        'จดบันทึกชั่งน้ำหนัก การให้อาหาร การฉีดวัคซีน การผสมพันธุ์ และสถิติการคลอด เก็บเป็นความลับเฉพาะฟาร์มของคุณ',
-      actionLabel: activeFarmProfile ? 'ดูสมุดบันทึกฟาร์ม' : 'เข้าสู่ระบบเพื่อดูบันทึก',
+        'จดบันทึกชั่งน้ำหนัก การให้อาหาร การฉีดวัคซีน ผสมพันธุ์ และสถิติการคลอด ครบทุกเหตุการณ์สำคัญในคอกเดียว',
+      actionLabel: activeFarmProfile ? 'ดูสมุดบันทึกฟาร์ม' : 'เปิดสมุดบันทึกฟาร์ม',
       icon: CalendarCheck2,
       tone: 'forest',
       requiresAuth: true,
@@ -157,11 +154,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     {
       id: 'dashboard',
       number: '06',
-      title: 'สรุปต้นทุน-ผลผลิตขน (ส่วนตัว)',
-      metric: 'วิเคราะห์เฉพาะฟาร์มของคุณ',
+      title: 'สรุปต้นทุน-ผลผลิตขน',
+      metric: 'เห็นต้นทุนและผลผลิตชัด',
       description:
-        'สรุปปริมาณอาหารที่ใช้ต่อวัน ต้นทุนค่าอาหาร ผลผลิตตัดขนรวม และจำนวนแกะแยกตามสายพันธุ์ในฟาร์มของคุณ',
-      actionLabel: activeFarmProfile ? 'ดูรายงานสรุปฟาร์ม' : 'เข้าสู่ระบบเพื่อดูต้นทุน',
+        'ติดตามปริมาณอาหารที่ใช้ต่อวัน ค่าอาหารรวม ผลผลิตตัดขน และสัดส่วนสายพันธุ์ในฟาร์มเพื่อวางแผนทำกำไร',
+      actionLabel: activeFarmProfile ? 'ดูรายงานสรุปฟาร์ม' : 'ดูสรุปต้นทุน-ผลผลิต',
       icon: TrendingUp,
       tone: 'walnut',
       requiresAuth: true,
@@ -208,8 +205,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
           <div className="relative z-10 max-w-4xl mx-auto space-y-5">
             <p className="text-xs sm:text-sm font-medium text-[#E5D3B3] tracking-wide flex items-center justify-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#9FD1AE] shrink-0" />
-              <span>ศูนย์รวมระบบจัดการฟาร์มแกะขนแบบแยกพื้นที่ส่วนตัวรายฟาร์ม (Multi-Farm Hub)</span>
+              <Sparkles className="w-4 h-4 text-[#9FD1AE] shrink-0" />
+              <span>ผู้ช่วยดิจิทัลสำหรับคนเลี้ยงแกะขนยุคใหม่ · ครบ จบ ในเว็บเดียว</span>
             </p>
 
             <div className="space-y-2.5">
@@ -217,9 +214,9 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                 Ovispro
               </h1>
               <h2 className="text-xl sm:text-3xl lg:text-4xl font-semibold text-[#FFFDF9] leading-snug max-w-3xl mx-auto drop-shadow-sm">
-                พื้นที่เก็บข้อมูลส่วนตัวสำหรับทุกฟาร์มแกะขน
-                <span className="block text-[#DFCBB3] text-lg sm:text-2xl font-medium mt-1">
-                  ทุกฟาร์มจัดการข้อมูลตัวเองอย่างปลอดภัย ฟาร์มอื่นไม่สามารถเข้ามาดูข้อมูลภายในได้
+                เปลี่ยนการทำฟาร์มแกะขนให้เป็นเรื่องง่าย แม่นยำ และคุ้มทุนทุกมื้ออาหาร
+                <span className="block text-[#DFCBB3] text-base sm:text-xl font-medium mt-2 leading-relaxed">
+                  จัดการทะเบียนแกะรายคอก เทียบ 11 สายพันธุ์เด่น คำนวณสูตรอาหารตามมาตรฐาน NRC พร้อมปัดหาคู่ผสมพันธุ์ข้ามฟาร์มบน Onlysheeps
                 </span>
               </h2>
             </div>
@@ -227,18 +224,18 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             {/* Live Multi-Farm Network Summary Strip */}
             <div className="inline-flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-5 py-2.5 rounded-2xl bg-[#182B1E]/80 backdrop-blur-xs border border-[#DFCBB3]/35 text-xs sm:text-sm text-[#FAF6EE]">
               <span>
-                ฟาร์มเข้าร่วมปัจจุบัน{' '}
+                ฟาร์มในเครือข่าย{' '}
                 <strong className="font-mono text-[#E8C589] text-sm sm:text-base ml-1">{totalFarms}</strong> ฟาร์ม
               </span>
               <span className="text-[#8DA696]" aria-hidden="true">·</span>
               <span>
-                แกะขนรวมในเครือข่าย{' '}
+                แกะขนรวม{' '}
                 <strong className="font-mono text-[#FAF6EE] ml-1">{totalNetworkSheep}</strong> ตัว
               </span>
               <span className="text-[#8DA696]" aria-hidden="true">·</span>
               <span className="inline-flex items-center gap-1 text-[#A7F3D0]">
-                <Lock className="w-3.5 h-3.5" />
-                <span>แยกข้อมูลส่วนตัว 100%</span>
+                <Leaf className="w-3.5 h-3.5" />
+                <span>คำนวณสูตรอาหาร NRC ลดต้นทุน</span>
               </span>
               <span className="text-[#8DA696]" aria-hidden="true">·</span>
               <span>
@@ -266,8 +263,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   onClick={scrollToPortal}
                   className="tactile-cta-btn bg-[#4A321F] hover:bg-[#5E4029] text-[#FAF6EE] border border-[#8B6240] px-6 py-3 rounded-xl font-semibold text-sm sm:text-base flex items-center gap-2.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Lock className="w-4 h-4 text-[#DFCBB3]" />
-                  <span>เข้าสู่ระบบฟาร์ม / เปิดฟาร์มใหม่</span>
+                  <Users className="w-4 h-4 text-[#DFCBB3]" />
+                  <span>เริ่มใช้งาน / เปิดฟาร์มใหม่</span>
                   <ChevronDown className="w-4 h-4 text-[#DFCBB3]" />
                 </button>
               )}
@@ -280,17 +277,6 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                 <Heart className="w-4 h-4 fill-current text-[#FDE047]" />
                 <span>Onlysheeps ปัดหาคู่แกะ 🐑😘</span>
               </button>
-
-              {onOpenWebForm && (
-                <button
-                  type="button"
-                  onClick={onOpenWebForm}
-                  className="bg-[#FAF6EE] hover:bg-[#EFE6D5] text-[#1E3F2B] border border-[#DFCBB3] px-5 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-[#2E6B47]" />
-                  <span>ฟอร์มบันทึกข้อมูล</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -324,8 +310,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           <div className="bg-gradient-to-r from-[#1E3F2B] via-[#234832] to-[#3B2616] text-[#FAF6EE] rounded-3xl border-2 border-[#4A321F] p-6 sm:p-8 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#A7F3D0]">
-                <ShieldCheck className="w-4 h-4" />
-                <span>กำลังทำงานในพื้นที่ส่วนตัวที่เข้ารหัสเฉพาะฟาร์มนี้</span>
+                <Sparkles className="w-4 h-4" />
+                <span>ยินดีต้อนรับเข้าสู่พื้นที่จัดการฟาร์มของคุณ</span>
                 <span className="text-[#8DA696]" aria-hidden="true">·</span>
                 {cloudSyncStatus === 'saving' ? (
                   <span className="text-[#FDE68A]">กำลังซิงค์ขึ้นระบบกลาง...</span>
@@ -422,12 +408,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                 <span>เครือข่ายฟาร์มที่ใช้งานระบบอยู่ในขณะนี้ ({totalFarms} ฟาร์ม)</span>
               </p>
               <h3 className="text-lg font-semibold text-[#1E3F2B] mt-0.5">
-                รายชื่อฟาร์มสมาชิก (แสดงเฉพาะข้อมูลสาธารณะ — ข้อมูลภายในถูกล็อกส่วนตัวทุกฟาร์ม)
+                รายชื่อฟาร์มสมาชิกในเครือข่าย Ovispro
               </h3>
             </div>
-            <span className="text-xs text-[#5C5346] flex items-center gap-1">
-              <Lock className="w-3.5 h-3.5 text-[#9C6B3F]" />
-              <span>ฟาร์มอื่นดูข้อมูลภายในไม่ได้</span>
+            <span className="text-xs text-[#5C5346]">
+              แตะเลือกฟาร์มเพื่อเข้าสู่ระบบอย่างรวดเร็ว
             </span>
           </div>
 
@@ -448,11 +433,6 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                       <h4 className="font-semibold text-sm text-[#1E3F2B] leading-snug">
                         {farm.farmName}
                       </h4>
-                      <Lock
-                        className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-                          isCurrent ? 'text-[#2E6B47]' : 'text-[#8C7F6E]'
-                        }`}
-                      />
                     </div>
                     <p className="text-xs text-[#6E6254] flex items-center gap-1">
                       <MapPin className="w-3 h-3 shrink-0 text-[#9C6B3F]" />
@@ -528,38 +508,38 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           <div className="lg:col-span-6 space-y-5 text-left">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-[#6E4826] tracking-wide">
-                ระบบศูนย์กลางหลายฟาร์ม · Privacy by Design
+                ทำไมคนเลี้ยงแกะขนถึงเลือก Ovispro · Smart Farm Hub
               </span>
               <BotanicalVineAccent className="w-24 h-7 shrink-0 opacity-85" />
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-semibold text-[#1E3F2B] leading-snug">
-              แยกฐานข้อมูลทุกฟาร์มเป็นความลับส่วนตัว แต่เชื่อมโอกาสผสมพันธุ์บน Onlysheeps ได้ทันที
+              บริหารฟาร์มแกะขนอย่างมืออาชีพ ลดต้นทุนอาหาร เพิ่มคุณภาพขน และต่อยอดสายพันธุ์ได้ไวขึ้น
             </h2>
 
             <div className="wood-rail-divider w-28" />
 
             <p className="text-sm sm:text-base text-[#4A4137] leading-relaxed">
-              ทุกฟาร์มที่เข้าใช้งานจะมีบัญชีและพื้นที่เก็บข้อมูลแยกเฉพาะของตัวเอง (ทะเบียนแกะ รายคอก ต้นทุนอาหาร วัตถุดิบ และสมุดบันทึก)
-              ฟาร์มอื่นไม่สามารถเข้ามาดูข้อมูลภายในฟาร์มของคุณได้ แต่เมื่อฟาร์มใดต้องการหาคู่ผสมพันธุ์ สามารถเลือกส่งแกะเด่นขึ้นหน้า{' '}
-              <strong className="text-[#BE185D]">Onlysheeps 🐑😘</strong> ได้อย่างปลอดภัย
+              บอกลาการจดสมุดกระดาษหรือจัดสูตรอาหารแบบกะเกณฑ์ Ovispro ช่วยรวมทะเบียนแกะรายคอก สูตรอาหารประหยัดต้นทุนตามเกณฑ์ NRC
+              และสมุดบันทึกฟาร์มไว้ในมือคุณ พร้อมเปิดโอกาสเชื่อมต่อพ่อแม่พันธุ์แกะขนคุณภาพดีกับเพื่อนเกษตรกรทั่วประเทศผ่าน{' '}
+              <strong className="text-[#BE185D]">Onlysheeps 🐑😘</strong>
             </p>
           </div>
         </div>
       </section>
 
       {/* ======================================================== */}
-      {/* 4. 6 PRIVATE/PUBLIC MODULES + PINK ONLYSHEEPS SPOTLIGHT  */}
+      {/* 4. 6 FARM MODULES + PINK ONLYSHEEPS SPOTLIGHT            */}
       {/* ======================================================== */}
       <section id="home-module-grid" className="space-y-6 pt-2">
         <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#4A321F]/35 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#6E4826]">
               <Leaf className="w-3.5 h-3.5 text-[#1E3F2B]" />
-              <span>เครื่องมือบริหารจัดการภายในฟาร์ม (Private) และจับคู่ข้ามฟาร์ม (Public)</span>
+              <span>ฟีเจอร์เด่นครบเครื่อง ทั้งบริหารฟาร์มในคอกและเชื่อมเครือข่ายแกะขน</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold text-[#1E3F2B]">
-              เลือกหัวข้อการใช้งานของระบบ
+              ครบทุกเครื่องมือสำหรับฟาร์มแกะขนในที่เดียว
             </h2>
           </div>
 
@@ -572,7 +552,6 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           {modules.map(mod => {
             const Icon = mod.icon;
             const isForest = mod.tone === 'forest';
-            const locked = mod.requiresAuth && !activeFarmProfile;
 
             return (
               <button
@@ -608,7 +587,6 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
                       <div className="text-right">
                         <span className="font-mono text-xs text-[#8C7F6E] flex items-center justify-end gap-1">
-                          {locked && <Lock className="w-3 h-3 text-[#9C6B3F]" />}
                           <span>หมวด {mod.number}</span>
                         </span>
                         <span

@@ -5,13 +5,13 @@
 
 import React, { useState } from 'react';
 import {
-  Lock,
   UserPlus,
   LogIn,
-  ShieldCheck,
+  Sparkles,
   KeyRound,
   AlertCircle,
   MapPin,
+  ChevronRight,
 } from 'lucide-react';
 import type { FarmProfile, PublicFarmSummary } from '../types/sheep';
 import { loginFarmAccount, registerFarmAccount, type FarmWorkspaceData } from '../utils/api';
@@ -31,8 +31,8 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
   onAuthenticated,
   prefilledUsername = '',
   compact = false,
-  title = 'เข้าสู่พื้นที่ส่วนตัวของฟาร์ม',
-  subtitle = 'ข้อมูลทะเบียนแกะ สูตรอาหาร และสมุดบันทึกฟาร์มจะถูกแยกเก็บเป็นส่วนตัว ฟาร์มอื่นไม่สามารถเข้ามาดูได้',
+  title = 'เข้าสู่พื้นที่จัดการฟาร์มของคุณ',
+  subtitle = 'เข้าสู่ระบบฟาร์มที่มีอยู่ หรือสมัครเปิดฟาร์มใหม่ได้ทันที เพื่อบันทึกฝูงแกะและคำนวณสูตรอาหาร',
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
@@ -132,8 +132,8 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#EAE2D0]">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-[#1E3F2B]">
-            <ShieldCheck className="w-4 h-4 text-[#2E6B47]" />
-            <span>ระบบแยกฐานข้อมูลส่วนตัวรายฟาร์ม (Multi-Farm Isolation)</span>
+            <Sparkles className="w-4 h-4 text-[#2E6B47]" />
+            <span>ระบบจัดการฟาร์มแกะขนครบวงจร (Ovispro Workspace)</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-semibold text-[#1E3F2B] mt-1">
             {title}
@@ -220,17 +220,17 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
               disabled={isSubmitting}
               className="tactile-cta-btn w-full min-h-[46px] bg-[#1E3F2B] hover:bg-[#29533A] text-[#FAF6EE] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
-              <Lock className="w-4 h-4" />
-              <span>{isSubmitting ? 'กำลังตรวจสอบสิทธิ์...' : 'ปลดล็อกเข้าสู่ข้อมูลฟาร์มนี้'}</span>
+              <LogIn className="w-4 h-4" />
+              <span>{isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่พื้นที่ฟาร์มนี้'}</span>
             </button>
 
             <div className="bg-[#FAF6EE] border border-[#EAE2D0] rounded-xl p-3.5 text-xs text-[#5C5346] space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-[#4A321F]">
                 <KeyRound className="w-3.5 h-3.5 text-[#9C6B3F]" />
-                <span>ระบบรหัสผ่านส่วนตัวเฉพาะเจ้าของฟาร์ม:</span>
+                <span>เข้าใช้งานได้สะดวกจากทุกอุปกรณ์:</span>
               </div>
               <p className="leading-relaxed">
-                ทุกฟาร์มตั้งรหัสผ่านเฉพาะของตนเอง ไม่มีรหัสกลางสำหรับทดสอบ เพื่อป้องกันไม่ให้ผู้อื่นสลับเข้ามาดูข้อมูลภายในฟาร์มของท่านได้
+                กรอกชื่อบัญชีและรหัสผ่านฟาร์มของคุณ เพื่อซิงค์ข้อมูลฝูงแกะ สูตรอาหาร และผลผลิตขนแบบเรียลไทม์
               </p>
             </div>
           </form>
@@ -270,7 +270,7 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
                         <span>{farm.sheepCount} ตัว</span>
                       </p>
                     </div>
-                    <Lock className="w-4 h-4 text-[#8C7F6E] shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[#8C7F6E] shrink-0" />
                   </button>
                 );
               })}

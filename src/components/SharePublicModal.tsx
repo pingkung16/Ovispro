@@ -71,10 +71,7 @@ export const SharePublicModal: React.FC<SharePublicModalProps> = ({
 
   const shareUrl = useMemo(() => {
     if (publicUrl && publicUrl.trim()) return publicUrl.trim();
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      return window.location.origin.replace('://ais-dev-', '://ais-pre-');
-    }
-    return '';
+    return 'https://ovispro-fawn.vercel.app/';
   }, [publicUrl]);
 
   useEffect(() => {
@@ -310,15 +307,11 @@ export const SharePublicModal: React.FC<SharePublicModalProps> = ({
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>เปิดลิงก์แชร์สาธารณะในแท็บใหม่</span>
                 </a>
-                {typeof window !== 'undefined' &&
-                  window.location.origin.includes('ais-dev-') && (
-                    <p className="text-[11px] text-[#6E6254] leading-relaxed w-full mt-1">
-                      💡 ทุกคนที่สแกน QR / เปิดลิงก์แชร์จะใช้งานบนหน้าเว็บสาธารณะเดียวกันและซิงค์ถึงกันทันที
-                      {cloudSyncConfigured
-                        ? ' (เชื่อมต่อระบบซิงค์กลางข้ามหน้าต่างแล้ว)'
-                        : ' — แนะนำเปิดดูบนแท็บลิงก์แชร์สาธารณะ หรือผูก Apps Script ใน "หลังบ้านเจ้าของแอป" เพื่อซิงค์ข้ามหน้าต่างพัฒนาด้วย'}
-                    </p>
-                  )}
+                {cloudSyncConfigured && (
+                  <p className="text-[11px] text-[#6E6254] leading-relaxed w-full mt-1">
+                    ทุกคนที่สแกน QR หรือเปิดลิงก์แชร์จะเข้าใช้งานเว็บ Ovispro และซิงค์ข้อมูลถึงกันแบบเรียลไทม์
+                  </p>
+                )}
               </div>
             </div>
 
@@ -346,11 +339,7 @@ export const SharePublicModal: React.FC<SharePublicModalProps> = ({
                   <span>วิธีแชร์และเปิดเข้าใช้งาน:</span>
                 </h4>
                 <p>1. ใช้กล้องมือถือสแกน QR Code เพื่อเปิดหน้าเว็บ Ovispro ได้ทันที</p>
-                <p>
-                  2. หากมือถือเครื่องอื่นสแกนแล้วขึ้นแจ้งเตือนสิทธิ์เข้าใช้งาน ให้กดปุ่ม{' '}
-                  <strong>Share</strong> มุมขวาบนของ AI Studio และเลือกเป็น{' '}
-                  <strong>&quot;Anyone with the link&quot;</strong>
-                </p>
+                <p>2. หรือกดคัดลอกลิงก์แล้วส่งผ่าน LINE / Facebook ให้เพื่อนเกษตรกร</p>
                 <p>3. ใช้งานได้ทั้งคอมพิวเตอร์ มือถือ และแท็บเล็ต</p>
               </div>
             </div>
