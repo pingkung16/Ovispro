@@ -12,13 +12,291 @@ import {
   SheepStage,
 } from '../types/sheep';
 
+export interface WoolNutritionReason {
+  key: 'soundness' | 'gfw' | 'staple' | 'handle' | 'crimp';
+  severity: 'action' | 'tip' | 'good';
+  titleTh: string;
+  detailTh: string;
+  effectTh: string;
+}
+
+export interface WoolNutritionAdjustment {
+  sampleCount: number;
+  hasPenSideData: boolean;
+  hasAdjustments: boolean;
+  cpDeltaPct: number;
+  tdnDeltaPct: number;
+  roughageMinPctDelta: number;
+  summaryHeadlineTh: string;
+  reasons: WoolNutritionReason[];
+  metrics: {
+    avgGfwKg: number | null;
+    avgBodyGfwKg: number | null;
+    avgSkirtingsKg: number | null;
+    avgStapleCm: number | null;
+    weakBaseOrMidCount: number;
+    weakTipCount: number;
+    dryHarshCount: number;
+    denseCrimpCount: number;
+  };
+}
+
+/**
+ * วิเคราะห์พารามิเตอร์ขนแกะที่วัดเองหน้าคอก 4 ด้าน เพื่อแปลเป็นคำแนะนำปรับสูตรอาหารแบบเข้าใจง่าย
+ */
+export function analyzeWoolNutritionAdjustments(
+  sheepInput: Sheep | Sheep[]
+): WoolNutritionAdjustment {
+  const list = Array.isArray(sheepInput) ? sheepInput : [sheepInput];
+  if (list.length === 0) {
+    return {
+      sampleCount: 0,
+      hasPenSideData: false,
+      hasAdjustments: false,
+      cpDeltaPct: 0,
+      tdnDeltaPct: 0,
+      roughageMinPctDelta: 0,
+      summaryHeadlineTh: 'ยังไม่มีข้อมูลแกะในคอกสำหรับประเมินผลขน',
+      reasons: [],
+      metrics: {
+        avgGfwKg: null,
+        avgBodyGfwKg: null,
+        avgSkirtingsKg: null,
+        avgStapleCm: null,
+        weakBaseOrMidCount: 0,
+        weakTipCount: 0,
+        dryHarshCount: 0,
+        denseCrimpCount: 0,
+      },
+    };
+  }
+
+  const gfwValues: number[] = [];
+  const bodyGfwValues: number[] = [];
+  const skirtingsValues: number[] = [];
+  const stapleValues: number[] = [];
+
+  let weakBaseOrMidCount = 0;
+  let weakTipCount = 0;
+  let strongCount = 0;
+  let dryHarshCount = 0;
+  let denseCrimpCount = 0;
+  let penSideFieldCount = 0;
+
+  for (const s of list) {
+    const hasSplitGfw = s.gfwBodyKg != null || s.gfwSkirtingsKg != null;
+    if (hasSplitGfw) {
+      penSideFieldCount++;
+      const body = Number(s.gfwBodyKg ?? 0);
+      const skirt = Number(s.gfwSkirtingsKg ?? 0);
+      if (s.gfwBodyKg != null) bodyGfwValues.push(body);
+      if (s.gfwSkirtingsKg != null) skirtingsValues.push(skirt);
+      const total = body + skirt;
+      if (total > 0) gfwValues.push(total);
+    } else if (s.fleeceYieldKg != null && s.fleeceYieldKg > 0) {
+      gfwValues.push(Number(s.fleeceYieldKg));
+    }
+
+    if (s.woolStapleLengthCm != null && s.woolStapleLengthCm > 0) {
+      stapleValues.push(Number(s.woolStapleLengthCm));
+    }
+
+    if (s.woolSoundness) {
+      penSideFieldCount++;
+      if (s.woolSoundness === 'weak_base' || s.woolSoundness === 'weak_mid') {
+        weakBaseOrMidCount++;
+      } else if (s.woolSoundness === 'weak_tip') {
+        weakTipCount++;
+      } else if (s.woolSoundness === 'strong') {
+        strongCount++;
+      }
+    }
+
+    if (s.woolHandle) {
+      penSideFieldCount++;
+      if (s.woolHandle === 'dry_harsh') dryHarshCount++;
+    }
+
+    if (s.woolCrimpStyle) {
+      penSideFieldCount++;
+      if (s.woolCrimpStyle === 'dense') denseCrimpCount++;
+    }
+  }
+
+  const avg = (arr: number[]): number | null =>
+    arr.length > 0 ? Number((arr.reduce((sum, v) => sum + v, 0) / arr.length).toFixed(2)) : null;
+
+  const avgGfwKg = avg(gfwValues);
+  const avgBodyGfwKg = avg(bodyGfwValues);
+  const avgSkirtingsKg = avg(skirtingsValues);
+  const avgStapleCm = avg(stapleValues);
+
+  let rawCpDelta = 0;
+  let rawTdnDelta = 0;
+  const rawRoughageDelta = 0;
+  const reasons: WoolNutritionReason[] = [];
+
+  // 1. ความแข็งแรงเบื้องต้น (Soundness / Hand-break test)
+  if (weakBaseOrMidCount > 0) {
+    const ratio = weakBaseOrMidCount / list.length;
+    const isMajor = list.length === 1 || ratio >= 0.25;
+    const cpAdd = isMajor ? 1.0 : 0.5;
+    const tdnAdd = isMajor ? 2.0 : 1.0;
+    rawCpDelta += cpAdd;
+    rawTdnDelta += tdnAdd;
+    reasons.push({
+      key: 'soundness',
+      severity: 'action',
+      titleTh:
+        list.length === 1
+          ? 'ขนขาดง่ายช่วงโคน/กลางเส้น'
+          : `พบขนขาดง่ายช่วงโคน/กลาง ${weakBaseOrMidCount} ตัว`,
+      detailTh:
+        'ช่อขนเปราะขาดกลาง/โคนมักเกิดจากแกะขาดโปรตีน-พลังงานเฉียบพลันหรือขาดแร่ธาตุกำมะถัน/สังกะสี',
+      effectTh: `เพิ่ม +${cpAdd.toFixed(1)}% CP และ +${tdnAdd.toFixed(1)}% TDN + เสริมพรีมิกซ์กำมะถัน`,
+    });
+  } else if (weakTipCount > 0) {
+    reasons.push({
+      key: 'soundness',
+      severity: 'tip',
+      titleTh: 'ปลายเส้นขนกรอบแดดเล็กน้อย',
+      detailTh: 'ช่วงโคนและกลางเส้นยังเหนียวปกติ ปลายขนเปราะเกิดจากแดดจัดหรือฝนชะล้าง',
+      effectTh: 'คงสูตรอาหารเดิมได้ แต่ควรจัดร่มเงาในคอกเพิ่ม',
+    });
+  } else if (strongCount > 0) {
+    reasons.push({
+      key: 'soundness',
+      severity: 'good',
+      titleTh: 'ความแข็งแรงขนดี (ไม่ขาดง่าย)',
+      detailTh: 'เส้นใยขนสร้างเคราตินสม่ำเสมอตลอดความยาวช่อขน',
+      effectTh: 'โภชนาการโปรตีนปัจจุบันเพียงพอแล้ว',
+    });
+  }
+
+  // 2. น้ำหนักขนดิบ (Greasy Fleece Weight - GFW)
+  if (avgGfwKg != null && avgGfwKg >= 5.5) {
+    rawCpDelta += 0.5;
+    reasons.push({
+      key: 'gfw',
+      severity: 'action',
+      titleTh: `ขนดกน้ำหนักดิบรวมสูง (${avgGfwKg.toFixed(1)} กก./ปี)`,
+      detailTh: 'แกะที่ให้ปริมาณขนมากต้องดึงโปรตีนและกรดอะมิโนที่มีกำมะถันไปสร้างเส้นใยสูงกว่าปกติ',
+      effectTh: 'เพิ่ม +0.5% CP เพื่อไม่ให้แม่แกะผอมโทรมหลังตัดขน',
+    });
+  }
+  if (avgBodyGfwKg != null && avgSkirtingsKg != null && avgBodyGfwKg + avgSkirtingsKg > 0) {
+    const skirtRatio = avgSkirtingsKg / (avgBodyGfwKg + avgSkirtingsKg);
+    if (skirtRatio >= 0.3) {
+      reasons.push({
+        key: 'gfw',
+        severity: 'tip',
+        titleTh: `สัดส่วนเศษขนชายท้อง/ขาสูง (${Math.round(skirtRatio * 100)}%)`,
+        detailTh: 'เศษขนเปื้อนเยอะทำให้ขนลำตัวเสียราคา ควรคัดแยกถุงตอนตัดและปูพื้นคอกให้แห้ง',
+        effectTh: 'แยกชั่งขายเฉพาะขนลำตัวเพื่อทำราคาสูงขึ้น',
+      });
+    }
+  }
+
+  // 3. ความยาวช่อขน (Staple Length)
+  if (avgStapleCm != null && avgStapleCm < 7.0) {
+    rawTdnDelta += 1.5;
+    const cpExtra = weakBaseOrMidCount === 0 ? 0.5 : 0;
+    rawCpDelta += cpExtra;
+    reasons.push({
+      key: 'staple',
+      severity: 'action',
+      titleTh: `ความยาวช่อขนสั้น (${avgStapleCm.toFixed(1)} ซม. / ${(avgStapleCm * 10).toFixed(0)} มม.)`,
+      detailTh: 'ช่อขนยาวช้ากว่าเกณฑ์ 7 ซม. มักสัมพันธ์กับพลังงานและโปรตีนไม่พอเร่งการยืดตัวของเส้นใย',
+      effectTh:
+        cpExtra > 0
+          ? 'เพิ่ม +1.5% TDN และ +0.5% CP เร่งการเติบโตช่อขน'
+          : 'เพิ่ม +1.5% TDN ช่วยให้เส้นใยยืดยาวไวขึ้น',
+    });
+  } else if (avgStapleCm != null && avgStapleCm >= 9.0) {
+    reasons.push({
+      key: 'staple',
+      severity: 'good',
+      titleTh: `ช่อขนยาวสวย (${avgStapleCm.toFixed(1)} ซม. / ${(avgStapleCm * 10).toFixed(0)} มม.)`,
+      detailTh: 'ความยาวตามธรรมชาติได้มาตรฐานเส้นใยปั่นด้ายคุณภาพสูง',
+      effectTh: 'รักษาสมดุลอาหารพลังงาน-โปรตีนชุดนี้ต่อเนื่อง',
+    });
+  }
+
+  // 4. ความนุ่มและลอนขน (Crimp & Handle)
+  if (dryHarshCount > 0) {
+    const ratio = dryHarshCount / list.length;
+    const tdnAdd = list.length === 1 || ratio >= 0.25 ? 1.5 : 1.0;
+    rawTdnDelta += tdnAdd;
+    reasons.push({
+      key: 'handle',
+      severity: 'action',
+      titleTh:
+        list.length === 1
+          ? 'ขนแห้งสาก ไขขน (Lanolin) น้อย'
+          : `พบขนแห้งสากไขขนน้อย ${dryHarshCount} ตัว`,
+      detailTh: 'ไขขนช่วยเคลือบเส้นใยให้นุ่มลื่นและกันน้ำ หากแห้งหยาบมักเกิดจากพลังงาน/ไขมันดีในอาหารต่ำ',
+      effectTh: `เพิ่มพลังงาน +${tdnAdd.toFixed(1)}% TDN (เช่น รำข้าว/ข้าวโพด) เพิ่มไขขนธรรมชาติ`,
+    });
+  }
+
+  if (denseCrimpCount > 0) {
+    reasons.push({
+      key: 'crimp',
+      severity: 'good',
+      titleTh:
+        list.length === 1
+          ? 'ลอนคลื่นถี่สม่ำเสมอ (เส้นใยละเอียด)'
+          : `แกะลอนขนถี่สม่ำเสมอ ${denseCrimpCount} ตัว`,
+      detailTh: 'ลอนขนถี่บอกถึงความละเอียดของเส้นใย ต้องให้อาหารสม่ำเสมอทุกวันเพื่อไม่ให้ลอนขนคอดกิ่ว',
+      effectTh: 'ห้ามปล่อยให้ขาดอาหารช่วงใดช่วงหนึ่ง',
+    });
+  }
+
+  // Safety physiological caps
+  const cpDeltaPct = Math.min(2.0, Number(rawCpDelta.toFixed(1)));
+  const tdnDeltaPct = Math.min(4.0, Number(rawTdnDelta.toFixed(1)));
+  const roughageMinPctDelta = Math.min(10, Math.round(rawRoughageDelta));
+  const hasAdjustments = cpDeltaPct > 0 || tdnDeltaPct > 0 || roughageMinPctDelta > 0;
+
+  let summaryHeadlineTh = 'คุณภาพขนอยู่ในเกณฑ์ดี ใช้เกณฑ์โภชนาการมาตรฐาน NRC ได้เลย';
+  if (hasAdjustments) {
+    const parts: string[] = [];
+    if (cpDeltaPct > 0) parts.push(`โปรตีน +${cpDeltaPct}% CP`);
+    if (tdnDeltaPct > 0) parts.push(`พลังงาน +${tdnDeltaPct}% TDN`);
+    if (roughageMinPctDelta > 0) parts.push(`หญ้าหยาบ +${roughageMinPctDelta}%`);
+    summaryHeadlineTh = `แนะนำปรับเป้าสูตรอาหาร: ${parts.join(' · ')}`;
+  }
+
+  return {
+    sampleCount: list.length,
+    hasPenSideData: penSideFieldCount > 0 || stapleValues.length > 0 || gfwValues.length > 0,
+    hasAdjustments,
+    cpDeltaPct,
+    tdnDeltaPct,
+    roughageMinPctDelta,
+    summaryHeadlineTh,
+    reasons,
+    metrics: {
+      avgGfwKg,
+      avgBodyGfwKg,
+      avgSkirtingsKg,
+      avgStapleCm,
+      weakBaseOrMidCount,
+      weakTipCount,
+      dryHarshCount,
+      denseCrimpCount,
+    },
+  };
+}
+
 /**
  * คำนวณความต้องการโภชนาการของแกะตามน้ำหนักตัว ระยะการผลิต และเป้าหมายการเจริญเติบโต (NRC Sheep Standards & DLD Thailand)
  */
 export function calculateSheepNutrientRequirement(
   weightKg: number,
   stage: SheepStage,
-  adgTargetGrams: number = 150
+  adgTargetGrams: number = 150,
+  woolAdjustment?: WoolNutritionAdjustment | null
 ): NutrientRequirement {
   const safeWeight = Math.max(3, Math.min(120, weightKg));
 
@@ -100,6 +378,17 @@ export function calculateSheepNutrientRequirement(
       pPercent = 0.25;
       targetRcRatio = '70:30';
       break;
+  }
+
+  if (woolAdjustment && woolAdjustment.hasAdjustments) {
+    cpPercent = Number(Math.min(19.0, cpPercent + woolAdjustment.cpDeltaPct).toFixed(1));
+    tdnPercent = Number(Math.min(76.0, tdnPercent + woolAdjustment.tdnDeltaPct).toFixed(1));
+    if (woolAdjustment.roughageMinPctDelta > 0) {
+      const [rStr] = targetRcRatio.split(':');
+      const baseR = Number(rStr) || 60;
+      const nextR = Math.min(80, baseR + woolAdjustment.roughageMinPctDelta);
+      targetRcRatio = `${nextR}:${100 - nextR}`;
+    }
   }
 
   const dmiKgMid = (safeWeight * dmiPercentBw) / 100;
@@ -529,7 +818,8 @@ export function autoFormulateRationFromIngredients(
     const rcDiff =
       hasRoughage && hasConcentrate ? (stats.roughagePercent - targetRoughageDmPct) / 10 : 0;
 
-    let penalty = cpDiff * cpDiff * 16 + tdnDiff * tdnDiff * 2.5 + rcDiff * rcDiff * 3.0;
+    const rcWeight = targetRoughageDmPct >= 68 ? 5.0 : 3.0;
+    let penalty = cpDiff * cpDiff * 16 + tdnDiff * tdnDiff * 2.5 + rcDiff * rcDiff * rcWeight;
 
     // Penalize low roughage if roughage exists (protect rumen health >= 35% DM)
     if (hasRoughage && stats.roughagePercent < 35) {

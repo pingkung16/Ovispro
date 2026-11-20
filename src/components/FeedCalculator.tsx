@@ -28,6 +28,7 @@ import {
   SheepStage,
 } from '../types/sheep';
 import {
+  analyzeWoolNutritionAdjustments,
   autoFormulateRationFromIngredients,
   calculateRationNutrition,
   calculateSheepNutrientRequirement,
@@ -152,6 +153,7 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
 
   const [activeRationId, setActiveRationId] = useState<string | null>(null);
   const [autoBalanceOnSelect, setAutoBalanceOnSelect] = useState<boolean>(true);
+  const [applyWoolAdjustments, setApplyWoolAdjustments] = useState<boolean>(true);
   const [assignToPenOnSave, setAssignToPenOnSave] = useState<boolean>(true);
   const [showQuickAddIngredient, setShowQuickAddIngredient] = useState<boolean>(false);
   const [quickIngName, setQuickIngName] = useState<string>('');
@@ -232,9 +234,28 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
   const currentStage = customStage;
   const currentAdg = customAdg;
 
-  const targetReq = useMemo(() => {
+  const woolTargetSheep = useMemo(() => {
+    if (selectedSheepForCalc) return [selectedSheepForCalc];
+    if (activePen) return sheepList.filter(s => s.penId === activePen.id);
+    return [];
+  }, [selectedSheepForCalc, activePen, sheepList]);
+
+  const woolAdjustment = useMemo(() => {
+    return analyzeWoolNutritionAdjustments(woolTargetSheep);
+  }, [woolTargetSheep]);
+
+  const baseTargetReq = useMemo(() => {
     return calculateSheepNutrientRequirement(currentWeight, currentStage, currentAdg);
   }, [currentWeight, currentStage, currentAdg]);
+
+  const targetReq = useMemo(() => {
+    return calculateSheepNutrientRequirement(
+      currentWeight,
+      currentStage,
+      currentAdg,
+      applyWoolAdjustments ? woolAdjustment : null
+    );
+  }, [currentWeight, currentStage, currentAdg, applyWoolAdjustments, woolAdjustment]);
 
   const totalPercentSum = useMemo(() => {
     return rationItems.reduce((sum, item) => sum + (Number(item.percentInMix) || 0), 0);
@@ -284,7 +305,8 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
       const nextReq = calculateSheepNutrientRequirement(
         currentWeight,
         selectedPenId === 'custom' ? ration.targetStage : currentStage,
-        currentAdg
+        currentAdg,
+        applyWoolAdjustments ? woolAdjustment : null
       );
       runAutoFormulateForList(
         validItems.map(i => i.ingredientId),
@@ -677,6 +699,123 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
             {pens.map(p => `${p.code} (${p.sheepCount})`).join(' · ')}
           </span>
         </div>
+
+        {/* Pen-Side Wool Evaluation -> Nutrient Target Integration Card */}
+        {woolTargetSheep.length > 0 && (
+          <div
+            className={`rounded-2xl border p-4 sm:p-5 space-y-3.5 text-xs ${
+              woolAdjustment.hasAdjustments && applyWoolAdjustments
+                ? 'bg-[#FBF4E7] border-[#DFCBB3]'
+                : 'bg-[#FAF6EE] border-[#EAE2D0]'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 font-semibold text-[#1E3F2B] text-sm">
+                  <Sparkles className="w-4 h-4 text-[#9C6B3F] shrink-0" />
+                  <span>
+                    สรุปผลตรวจขนหน้าคอก ({selectedSheepForCalc ? `เฉพาะตัว ${selectedSheepForCalc.name}` : `เฉลี่ย ${activePen?.code || 'คอกนี้'} ${woolTargetSheep.length} ตัว`})
+                  </span>
+                </div>
+                <p className="text-[#6E4826] font-medium">{woolAdjustment.summaryHeadlineTh}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 bg-[#FFFDF9] border border-[#DFCBB3] px-3 py-1.5 rounded-xl font-semibold text-[#1E3F2B] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={applyWoolAdjustments}
+                    onChange={e => setApplyWoolAdjustments(e.target.checked)}
+                    className="accent-[#1E3F2B] cursor-pointer"
+                  />
+                  <span>นำผลตรวจขนมาปรับสูตรอัตโนมัติ</span>
+                </label>
+
+                {woolAdjustment.hasAdjustments && applyWoolAdjustments && (
+                  <button
+                    type="button"
+                    onClick={handleAutoFormulateCurrent}
+                    className="bg-[#1E3F2B] hover:bg-[#29533A] text-[#FAF6EE] px-3 py-1.5 rounded-xl font-semibold cursor-pointer transition-colors"
+                  >
+                    ปรับสัดส่วน % ตามคำแนะนำนี้
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Baseline NRC vs Adjusted Target Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#FFFDF9] p-3 rounded-xl border border-[#EAE2D0]">
+              <div className="flex items-center justify-between sm:block">
+                <span className="text-[11px] text-[#7D7061] block">เป้าหมายโปรตีน (% CP)</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <strong className="font-mono text-sm text-[#1E3F2B]">
+                    {targetReq.cpPercent}%
+                  </strong>
+                  {applyWoolAdjustments && woolAdjustment.cpDeltaPct > 0 && (
+                    <span className="text-[11px] font-mono text-[#9C6B3F] font-semibold">
+                      (มาตรฐาน {baseTargetReq.cpPercent}% + {woolAdjustment.cpDeltaPct}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:block">
+                <span className="text-[11px] text-[#7D7061] block">เป้าหมายพลังงาน (% TDN)</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <strong className="font-mono text-sm text-[#9C6B3F]">
+                    {targetReq.tdnPercent}%
+                  </strong>
+                  {applyWoolAdjustments && woolAdjustment.tdnDeltaPct > 0 && (
+                    <span className="text-[11px] font-mono text-[#9C6B3F] font-semibold">
+                      (มาตรฐาน {baseTargetReq.tdnPercent}% + {woolAdjustment.tdnDeltaPct}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:block">
+                <span className="text-[11px] text-[#7D7061] block">สัดส่วน หญ้า : อาหารข้น</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <strong className="font-mono text-sm text-[#2E6B47]">
+                    {targetReq.targetRcRatio}
+                  </strong>
+                  {applyWoolAdjustments && woolAdjustment.roughageMinPctDelta > 0 && (
+                    <span className="text-[11px] font-mono text-[#2E6B47] font-semibold">
+                      (+{woolAdjustment.roughageMinPctDelta}% หญ้าหยาบ)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {woolAdjustment.reasons.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {woolAdjustment.reasons.map((r, i) => (
+                  <div
+                    key={`${r.key}-${i}`}
+                    className="bg-[#FFFDF9]/90 px-3 py-2 rounded-lg border border-[#EAE2D0] flex items-start gap-2"
+                  >
+                    <span
+                      className={`mt-0.5 shrink-0 font-bold ${
+                        r.severity === 'action'
+                          ? 'text-[#A63D2E]'
+                          : r.severity === 'tip'
+                          ? 'text-[#9C6B3F]'
+                          : 'text-[#2E6B47]'
+                      }`}
+                    >
+                      {r.severity === 'action' ? '▲' : r.severity === 'tip' ? '•' : '✓'}
+                    </span>
+                    <div className="leading-snug">
+                      <strong className="text-[#1E3F2B] block">{r.titleTh}</strong>
+                      <span className="text-[#5C5346]">{r.effectTh}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Authoritative NRC % Protein Reference Guide by Age / Stage */}

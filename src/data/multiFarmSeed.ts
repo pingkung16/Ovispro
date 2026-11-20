@@ -560,6 +560,14 @@ function buildSheepForSpec(spec: SeedFarmSpec): Sheep[] {
       ? `มีเดียมวูลหนานุ่ม (${woolMicron} µm)`
       : `ไฟน์-มีเดียมขาวสะอาด (${woolMicron} µm)`;
 
+    const gfwBodyKg = Number((fleeceYieldKg * 0.78).toFixed(1));
+    const gfwSkirtingsKg = Number((fleeceYieldKg - gfwBodyKg).toFixed(1));
+    const woolSoundness =
+      seq % 9 === 0 ? 'weak_base' : seq % 11 === 0 ? 'weak_tip' : 'strong';
+    const woolCrimpStyle = isMerino ? 'dense' : isHampshire ? 'medium' : 'medium';
+    const woolHandle =
+      seq % 10 === 0 ? 'dry_harsh' : isMerino ? 'soft_greasy' : 'normal';
+
     result.push({
       id: `${spec.farmId}-sheep-${seq}`,
       earTag,
@@ -595,6 +603,11 @@ function buildSheepForSpec(spec: SeedFarmSpec): Sheep[] {
       woolMicron,
       woolStapleLengthCm: isMerino ? 11.2 : 9.6,
       fleeceYieldKg,
+      gfwBodyKg,
+      gfwSkirtingsKg,
+      woolSoundness,
+      woolCrimpStyle,
+      woolHandle,
       lastShearingDate: '2026-03-10',
       woolColor: isHampshire ? 'ขาวนวลตัดใบหูดำเสน่ห์' : 'ขาวครีมสะอาด',
       crimpPerInch: isMerino ? 14 : 10,

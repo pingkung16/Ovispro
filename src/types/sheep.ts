@@ -35,6 +35,10 @@ export interface Pen {
   notes?: string;
 }
 
+export type WoolSoundness = 'strong' | 'weak_base' | 'weak_mid' | 'weak_tip';
+export type WoolCrimpStyle = 'dense' | 'medium' | 'loose';
+export type WoolHandle = 'soft_greasy' | 'normal' | 'dry_harsh';
+
 export interface Sheep {
   id: string;
   earTag: string;          // รหัสเบอร์หู เช่น SH-001
@@ -74,11 +78,16 @@ export interface Sheep {
   hoofTrimLastDate?: string;// วันที่ตัดแต่งกีบล่าสุด
   healthNotes?: string;
 
-  // ผลิตภัณฑ์จากแกะ (Wool Performance)
+  // ผลิตภัณฑ์จากแกะ (Wool Performance & Pen-Side Evaluation)
   woolGrade?: string;      // เกรดขน เช่น 'ซูเปอร์ไฟน์ (< 19 µm)', 'ไฟน์ (19-21 µm)', 'มีเดียม (22-26 µm)', 'ลองวูล (> 26 µm)'
   woolMicron?: number;     // ขนาดเส้นใยไมครอน (µm) เช่น 18.5
-  woolStapleLengthCm?: number; // ความยาวเส้นขน (ซม.) เช่น 10.5
-  fleeceYieldKg?: number;  // น้ำหนักขนตัดต่อปี (กก./ปี) เช่น 7.2
+  woolStapleLengthCm?: number; // ความยาวช่อขนตามธรรมชาติ (ซม. / วัดตำแหน่งกลางลำตัว Mid-side) เช่น 10.5
+  fleeceYieldKg?: number;  // น้ำหนักขนดิบรวม (GFW รวม กก./ปี)
+  gfwBodyKg?: number;      // น้ำหนักขนดิบส่วนลำตัว (Greasy Fleece Weight - Body กก.)
+  gfwSkirtingsKg?: number; // น้ำหนักเศษขนชายท้องและขนขา (Skirtings / Belly & Legs กก.)
+  woolSoundness?: WoolSoundness; // ความแข็งแรงเบื้องต้น (Hand-break test)
+  woolCrimpStyle?: WoolCrimpStyle; // ความถี่และสม่ำเสมอของลอนขน (Crimp)
+  woolHandle?: WoolHandle; // ความนุ่มลื่นและไขขน (Handle / Grease)
   lastShearingDate?: string; // วันที่ตัดขนล่าสุด (YYYY-MM-DD)
   woolColor?: string;      // สีขน เช่น ขาวบริสุทธิ์, ขาวนวล
   crimpPerInch?: number;   // จำนวนลอนคลื่นต่อนิ้ว เช่น 12

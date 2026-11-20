@@ -30,6 +30,9 @@ import type {
   Sheep,
   SheepStage,
   WebFormSubmission,
+  WoolCrimpStyle,
+  WoolHandle,
+  WoolSoundness,
 } from '../types/sheep';
 import type { FarmWorkspaceData } from './api';
 
@@ -169,6 +172,13 @@ function mapSheepRow(row: Record<string, unknown>): Sheep {
     woolStapleLengthCm:
       row.wool_staple_length_cm != null ? Number(row.wool_staple_length_cm) : undefined,
     fleeceYieldKg: row.fleece_yield_kg != null ? Number(row.fleece_yield_kg) : undefined,
+    gfwBodyKg: row.gfw_body_kg != null ? Number(row.gfw_body_kg) : undefined,
+    gfwSkirtingsKg: row.gfw_skirtings_kg != null ? Number(row.gfw_skirtings_kg) : undefined,
+    woolSoundness: row.wool_soundness ? (String(row.wool_soundness) as WoolSoundness) : undefined,
+    woolCrimpStyle: row.wool_crimp_style
+      ? (String(row.wool_crimp_style) as WoolCrimpStyle)
+      : undefined,
+    woolHandle: row.wool_handle ? (String(row.wool_handle) as WoolHandle) : undefined,
     lastShearingDate: row.last_shearing_date ? String(row.last_shearing_date) : undefined,
     woolColor: row.wool_color ? String(row.wool_color) : undefined,
     crimpPerInch: row.crimp_per_inch != null ? Number(row.crimp_per_inch) : undefined,
@@ -225,6 +235,11 @@ function sheepToRow(farmId: string, sheep: Sheep) {
     wool_staple_length_cm:
       sheep.woolStapleLengthCm != null ? Number(sheep.woolStapleLengthCm) : null,
     fleece_yield_kg: sheep.fleeceYieldKg != null ? Number(sheep.fleeceYieldKg) : null,
+    gfw_body_kg: sheep.gfwBodyKg != null ? Number(sheep.gfwBodyKg) : null,
+    gfw_skirtings_kg: sheep.gfwSkirtingsKg != null ? Number(sheep.gfwSkirtingsKg) : null,
+    wool_soundness: sheep.woolSoundness ?? null,
+    wool_crimp_style: sheep.woolCrimpStyle ?? null,
+    wool_handle: sheep.woolHandle ?? null,
     last_shearing_date: sheep.lastShearingDate ?? null,
     wool_color: sheep.woolColor ?? null,
     crimp_per_inch: sheep.crimpPerInch != null ? Math.round(Number(sheep.crimpPerInch)) : null,
@@ -238,6 +253,33 @@ function sheepToRow(farmId: string, sheep: Sheep) {
     breeding_highlight: sheep.breedingHighlight ?? null,
     lambing_rate_pct: sheep.lambingRatePct ?? null,
   };
+}
+
+const OPTIONAL_NEW_SHEEP_COLUMNS = [
+  'gfw_body_kg',
+  'gfw_skirtings_kg',
+  'wool_soundness',
+  'wool_crimp_style',
+  'wool_handle',
+] as const;
+
+function stripOptionalNewSheepColumns(row: Record<string, unknown>): Record<string, unknown> {
+  const copy = { ...row };
+  for (const key of OPTIONAL_NEW_SHEEP_COLUMNS) {
+    delete copy[key];
+  }
+  return copy;
+}
+
+function isMissingColumnError(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return (
+    err.code === 'PGRST204' ||
+    err.code === '42703' ||
+    msg.includes('schema cache') ||
+    msg.includes('does not exist')
+  );
 }
 
 function mapIngredientRow(row: Record<string, unknown>): FeedIngredient {
@@ -479,9 +521,15 @@ export async function ensureSupabaseSeeded(): Promise<void> {
       await supabase
         .from('formulated_rations')
         .upsert(seed.rations.map(r => rationToRow(farmId, r)), { onConflict: 'farm_id,id' });
-      await supabase
+      const sheepRows = seed.sheepList.map(s => sheepToRow(farmId, s));
+      const seedSheepRes = await supabase
         .from('sheep')
-        .upsert(seed.sheepList.map(s => sheepToRow(farmId, s)), { onConflict: 'id' });
+        .upsert(sheepRows, { onConflict: 'id' });
+      if (seedSheepRes.error && isMissingColumnError(seedSheepRes.error)) {
+        await supabase
+          .from('sheep')
+          .upsert(sheepRows.map(stripOptionalNewSheepColumns), { onConflict: 'id' });
+      }
       await supabase
         .from('farm_logs')
         .upsert(seed.logs.map(l => logToRow(farmId, l)), { onConflict: 'id' });
@@ -633,7 +681,12 @@ async function syncScopedTableRows<T extends { id: string }>(
     const CHUNK = 100;
     for (let i = 0; i < rows.length; i += CHUNK) {
       const slice = rows.slice(i, i + CHUNK);
-      const upsertRes = await supabase.from(table).upsert(slice, { onConflict });
+      let upsertRes = await supabase.from(table).upsert(slice, { onConflict });
+      if (upsertRes.error && table === 'sheep' && isMissingColumnError(upsertRes.error)) {
+        upsertRes = await supabase
+          .from(table)
+          .upsert(slice.map(stripOptionalNewSheepColumns), { onConflict });
+      }
       if (upsertRes.error) {
         throw new Error(`Sync ${table} upsert failed: ${upsertRes.error.message}`);
       }

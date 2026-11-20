@@ -16,6 +16,12 @@ import {
 import type { FarmProfile, PublicFarmSummary } from '../types/sheep';
 import { loginFarmAccount, registerFarmAccount, type FarmWorkspaceData } from '../utils/api';
 import { writeFarmLocalVault } from '../utils/farmStorage';
+import {
+  ALL_THAI_PROVINCES,
+  FARM_BREED_CHOICES,
+  formatThaiFarmLocation,
+  getDistrictsForProvince,
+} from '../data/thailandLocations';
 
 interface FarmAuthPanelProps {
   farmDirectory: PublicFarmSummary[];
@@ -45,12 +51,42 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regFarmName, setRegFarmName] = useState('');
   const [regOwnerName, setRegOwnerName] = useState('');
-  const [regLocation, setRegLocation] = useState('');
+  const [regProvince, setRegProvince] = useState('');
+  const [regDistrict, setRegDistrict] = useState('');
   const [regContact, setRegContact] = useState('');
-  const [regBreedFocus, setRegBreedFocus] = useState('Merino · Hampshire · Dorset');
+  const [regSelectedBreeds, setRegSelectedBreeds] = useState<string[]>([
+    'Merino',
+    'Hampshire',
+    'Dorset',
+  ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const availableDistricts = React.useMemo(
+    () => (regProvince ? getDistrictsForProvince(regProvince) : []),
+    [regProvince]
+  );
+
+  const handleProvinceChange = (nextProvince: string) => {
+    setRegProvince(nextProvince);
+    if (!nextProvince) {
+      setRegDistrict('');
+      return;
+    }
+    const nextDistricts = getDistrictsForProvince(nextProvince);
+    setRegDistrict(nextDistricts[0] || '');
+  };
+
+  const toggleBreedChoice = (breedId: string) => {
+    setRegSelectedBreeds(prev =>
+      prev.includes(breedId)
+        ? prev.length > 1
+          ? prev.filter(id => id !== breedId)
+          : prev
+        : [...prev, breedId]
+    );
+  };
 
   // Sync prefilled username when user clicks a farm card
   React.useEffect(() => {
@@ -102,14 +138,20 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
 
     setIsSubmitting(true);
     try {
+      const formattedLocation = formatThaiFarmLocation(regProvince, regDistrict);
+      const formattedBreeds =
+        regSelectedBreeds.length > 0
+          ? regSelectedBreeds.join(' · ')
+          : 'Merino · Hampshire · Dorset';
+
       const res = await registerFarmAccount({
         username: normalizedRegUsername,
         password: regPassword,
         farmName: regFarmName.trim(),
         ownerName: regOwnerName.trim(),
-        location: regLocation.trim(),
+        location: formattedLocation,
         contact: regContact.trim(),
-        breedFocus: regBreedFocus.trim(),
+        breedFocus: formattedBreeds,
       });
       if (res.workspace) {
         writeFarmLocalVault(res.workspace.profile.farmId, res.workspace);
@@ -354,14 +396,51 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#5C5346] mb-1">จังหวัด / อำเภอ</label>
-              <input
-                type="text"
-                placeholder="เช่น จ.เชียงราย"
-                value={regLocation}
-                onChange={e => setRegLocation(e.target.value)}
-                className="w-full px-3.5 py-2 bg-[#FAF6EE] border border-[#DFCBB3] rounded-xl text-sm focus:outline-none focus:border-[#1E3F2B]"
-              />
+              <label
+                htmlFor="reg-province-select"
+                className="block text-xs font-semibold text-[#5C5346] mb-1"
+              >
+                จังหวัด
+              </label>
+              <select
+                id="reg-province-select"
+                value={regProvince}
+                onChange={e => handleProvinceChange(e.target.value)}
+                className="w-full px-3.5 py-2 bg-[#FAF6EE] border border-[#DFCBB3] rounded-xl text-sm text-[#24201B] focus:outline-none focus:border-[#1E3F2B]"
+              >
+                <option value="">-- เลือกจังหวัด --</option>
+                {ALL_THAI_PROVINCES.map(prov => (
+                  <option key={prov} value={prov}>
+                    {prov}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                htmlFor="reg-district-select"
+                className="block text-xs font-semibold text-[#5C5346] mb-1"
+              >
+                {regProvince === 'กรุงเทพมหานคร' ? 'เขต' : 'อำเภอ'}
+              </label>
+              <select
+                id="reg-district-select"
+                value={regDistrict}
+                disabled={!regProvince}
+                onChange={e => setRegDistrict(e.target.value)}
+                className="w-full px-3.5 py-2 bg-[#FAF6EE] border border-[#DFCBB3] rounded-xl text-sm text-[#24201B] focus:outline-none focus:border-[#1E3F2B] disabled:opacity-60"
+              >
+                {!regProvince ? (
+                  <option value="">-- เลือกจังหวัดก่อน --</option>
+                ) : (
+                  availableDistricts.map(dist => (
+                    <option key={dist} value={dist}>
+                      {dist}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
 
             <div>
@@ -374,15 +453,37 @@ export const FarmAuthPanel: React.FC<FarmAuthPanelProps> = ({
                 className="w-full px-3.5 py-2 bg-[#FAF6EE] border border-[#DFCBB3] rounded-xl text-sm focus:outline-none focus:border-[#1E3F2B]"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#5C5346] mb-1">สายพันธุ์ที่เลี้ยง</label>
-              <input
-                type="text"
-                value={regBreedFocus}
-                onChange={e => setRegBreedFocus(e.target.value)}
-                className="w-full px-3.5 py-2 bg-[#FAF6EE] border border-[#DFCBB3] rounded-xl text-sm focus:outline-none focus:border-[#1E3F2B]"
-              />
+          <div className="bg-[#FAF6EE] p-3.5 rounded-xl border border-[#DFCBB3]/80 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[#5C5346]">
+                สายพันธุ์แกะที่เลี้ยง (กดเลือกได้หลายสายพันธุ์)
+              </span>
+              <span className="text-[11px] font-medium text-[#1E3F2B]">
+                เลือกแล้ว {regSelectedBreeds.length} สายพันธุ์: {regSelectedBreeds.join(' · ')}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {FARM_BREED_CHOICES.map(breed => {
+                const isSelected = regSelectedBreeds.includes(breed.id);
+                return (
+                  <button
+                    key={breed.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => toggleBreedChoice(breed.id)}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                        : 'bg-[#FFFDF9] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                    }`}
+                  >
+                    {isSelected ? '✓ ' : '+ '}
+                    {breed.labelTh}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

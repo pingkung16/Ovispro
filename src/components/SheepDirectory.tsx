@@ -21,8 +21,19 @@ import {
   Leaf,
   FileText,
   Heart,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
-import { Sheep, SheepStage, FormulatedRation, Pen } from '../types/sheep';
+import {
+  Sheep,
+  SheepStage,
+  FormulatedRation,
+  Pen,
+  WoolSoundness,
+  WoolCrimpStyle,
+  WoolHandle,
+} from '../types/sheep';
+import { analyzeWoolNutritionAdjustments } from '../utils/nutrition';
 import { INITIAL_PENS } from '../data/initialData';
 import { getBreedPhoto } from '../data/breedPhotos';
 import onlysheepsCupidLogo from '../assets/images/onlysheeps_cupid_logo_1794824689407.jpg';
@@ -56,6 +67,14 @@ const FARM_BREEDS = [
   { value: 'เมอริโน (Merino)', label: 'เมอริโน (Merino) - ขนละเอียดพิเศษ' },
   { value: 'แฮมป์เชียร์ (Hampshire)', label: 'แฮมป์เชียร์ (Hampshire) - ขนปานกลาง โตเร็ว' },
   { value: 'ดอร์เซท (Dorset)', label: 'ดอร์เซท (Dorset) - ขนขาวสะอาด ผสมได้ตลอดปี' },
+  { value: 'คอร์ริเดล (Corriedale)', label: 'คอร์ริเดล (Corriedale) - กึ่งเนื้อกึ่งขน อันดับ 1 ในไทย' },
+  { value: 'แรมบูเยต์ (Rambouillet)', label: 'แรมบูเยต์ (Rambouillet) - ไฟน์วูลโครงสร้างใหญ่' },
+  { value: 'โคลัมเบีย (Columbia)', label: 'โคลัมเบีย (Columbia) - ขนหนา ทนอากาศแปรปรวน' },
+  { value: 'รอมนีย์ (Romney)', label: 'รอมนีย์ (Romney) - ลองวูลทนชื้น' },
+  { value: 'เดอบูเยต์ (Debouillet)', label: 'เดอบูเยต์ (Debouillet) - ไฟน์วูลทนแล้ง' },
+  { value: 'ลินคอล์น (Lincoln)', label: 'ลินคอล์น (Lincoln) - ลองวูลเส้นใยเงางาม' },
+  { value: 'คอตส์โวลด์ (Cotswold)', label: 'คอตส์โวลด์ (Cotswold) - ลองวูลลอนใหญ่' },
+  { value: 'แอสคาเนียน (Askanian)', label: 'แอสคาเนียน (Askanian) - ไฟน์วูลให้ขนดก' },
 ];
 
 const VACCINE_OPTIONS = [
@@ -68,6 +87,34 @@ const DEWORM_OPTIONS = [
   'Ivermectin (ไอเวอร์เมกติน 1%)',
   'Albendazole (อัลเบนดาโซล)',
 ];
+
+const SOUNDNESS_OPTIONS: { value: WoolSoundness; label: string; hint: string }[] = [
+  { value: 'strong', label: 'เหนียวดี ไม่ขาด', hint: 'ดึงดีดแล้วแน่นทั้งเส้น' },
+  { value: 'weak_base', label: 'ขาดช่วงโคน', hint: 'ขาดตรงโคนเส้นใย' },
+  { value: 'weak_mid', label: 'ขาดช่วงกลาง', hint: 'ขาดตรงกลางเส้นใย' },
+  { value: 'weak_tip', label: 'ขาดช่วงปลาย', hint: 'ปลายขนกรอบแดด/ฝน' },
+];
+
+const CRIMP_OPTIONS: { value: WoolCrimpStyle; label: string; hint: string }[] = [
+  { value: 'dense', label: 'ลอนถี่สม่ำเสมอ', hint: 'สัมพันธ์กับเส้นใยละเอียด' },
+  { value: 'medium', label: 'ลอนปานกลาง', hint: 'ลอนชัดมาตรฐาน' },
+  { value: 'loose', label: 'ลอนห่าง/ไม่ชัด', hint: 'เส้นใยใหญ่หรือลอนยืด' },
+];
+
+const HANDLE_OPTIONS: { value: WoolHandle; label: string; hint: string }[] = [
+  { value: 'soft_greasy', label: 'นุ่มลื่น ไขขนดี', hint: 'สัมผัสเนียนนุ่ม มีไขขนเคลือบ' },
+  { value: 'normal', label: 'ปกติ', hint: 'นุ่มปานกลาง' },
+  { value: 'dry_harsh', label: 'แห้งสาก/ไขน้อย', hint: 'จับแล้วแห้งสากมือ ไขขนน้อย' },
+];
+
+const getSoundnessLabel = (v?: WoolSoundness) =>
+  SOUNDNESS_OPTIONS.find(o => o.value === v)?.label || 'เหนียวดี ไม่ขาด';
+
+const getCrimpLabel = (v?: WoolCrimpStyle) =>
+  CRIMP_OPTIONS.find(o => o.value === v)?.label || 'ลอนปานกลาง';
+
+const getHandleLabel = (v?: WoolHandle) =>
+  HANDLE_OPTIONS.find(o => o.value === v)?.label || 'ปกติ';
 
 /**
  * ข้อความแบบคลิกเพื่อขยายดูทั้งหมดเมื่อข้อความยาวเกินพื้นที่ (จาก ... เป็นข้อความเต็ม)
@@ -130,13 +177,14 @@ const ExpandableText: React.FC<{
 
 const normalizeBreedOption = (breedName?: string): string => {
   if (!breedName) return 'เมอริโน (Merino)';
-  if (breedName.includes('แฮมป์เชียร์') || breedName.toLowerCase().includes('hampshire')) {
-    return 'แฮมป์เชียร์ (Hampshire)';
-  }
-  if (breedName.includes('ดอร์เซท') || breedName.toLowerCase().includes('dorset')) {
-    return 'ดอร์เซท (Dorset)';
-  }
-  return 'เมอริโน (Merino)';
+  const lower = breedName.toLowerCase();
+  const matched = FARM_BREEDS.find(b => {
+    const parenMatch = b.value.match(/\(([^)]+)\)/);
+    const enKeyword = parenMatch ? parenMatch[1].toLowerCase() : '';
+    const thKeyword = b.value.split(' ')[0];
+    return breedName.includes(thKeyword) || (enKeyword && lower.includes(enKeyword));
+  });
+  return matched ? matched.value : 'เมอริโน (Merino)';
 };
 
 const normalizeVaccineOption = (v?: string): string => {
@@ -219,11 +267,15 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
   const [formDewormLastDate, setFormDewormLastDate] = useState('2026-08-20');
   const [formHoofTrimLastDate, setFormHoofTrimLastDate] = useState('2026-10-01');
 
-  // Form states - Wool Specific Attributes
+  // Form states - Wool Specific & 4 Pen-Side Evaluation Attributes
   const [formWoolGrade, setFormWoolGrade] = useState('ซูเปอร์ไฟน์ (< 18.5 µm)');
   const [formWoolMicron, setFormWoolMicron] = useState<number>(18.5);
   const [formWoolStapleLengthCm, setFormWoolStapleLengthCm] = useState<number>(10.5);
-  const [formFleeceYieldKg, setFormFleeceYieldKg] = useState<number>(6.2);
+  const [formGfwBodyKg, setFormGfwBodyKg] = useState<number>(4.8);
+  const [formGfwSkirtingsKg, setFormGfwSkirtingsKg] = useState<number>(1.4);
+  const [formWoolSoundness, setFormWoolSoundness] = useState<WoolSoundness>('strong');
+  const [formWoolCrimpStyle, setFormWoolCrimpStyle] = useState<WoolCrimpStyle>('dense');
+  const [formWoolHandle, setFormWoolHandle] = useState<WoolHandle>('soft_greasy');
   const [formLastShearingDate, setFormLastShearingDate] = useState<string>('2026-03-01');
   const [formWoolColor, setFormWoolColor] = useState<string>('ขาวนวลสะอาด');
 
@@ -356,7 +408,11 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     setFormWoolGrade('ซูเปอร์ไฟน์ (< 18.5 µm)');
     setFormWoolMicron(18.5);
     setFormWoolStapleLengthCm(10.5);
-    setFormFleeceYieldKg(6.2);
+    setFormGfwBodyKg(4.8);
+    setFormGfwSkirtingsKg(1.4);
+    setFormWoolSoundness('strong');
+    setFormWoolCrimpStyle('dense');
+    setFormWoolHandle('soft_greasy');
     setFormLastShearingDate('2026-03-01');
     setFormWoolColor('ขาวนวลสะอาด');
   };
@@ -385,10 +441,10 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
 
     setFormSireId(sheep.sireId || '');
     setFormSireName(sheep.sireName || '');
-    setFormSireBreed(sheep.sireBreed || '');
+    setFormSireBreed(sheep.sireBreed ? normalizeBreedOption(sheep.sireBreed) : '');
     setFormDamId(sheep.damId || '');
     setFormDamName(sheep.damName || '');
-    setFormDamBreed(sheep.damBreed || '');
+    setFormDamBreed(sheep.damBreed ? normalizeBreedOption(sheep.damBreed) : '');
 
     setFormVaccineName(normalizeVaccineOption(sheep.vaccineName));
     setFormVaccineLastDate(sheep.vaccineLastDate || '2026-09-15');
@@ -399,7 +455,14 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     setFormWoolGrade(sheep.woolGrade || 'ไฟน์วูลละเอียด (19–21 µm)');
     setFormWoolMicron(sheep.woolMicron || 19.5);
     setFormWoolStapleLengthCm(sheep.woolStapleLengthCm || 10.5);
-    setFormFleeceYieldKg(sheep.fleeceYieldKg ?? 6.0);
+    const totalYield = sheep.fleeceYieldKg ?? 6.0;
+    const defaultBody = Number((totalYield * 0.78).toFixed(1));
+    const defaultSkirt = Number(Math.max(0, totalYield - defaultBody).toFixed(1));
+    setFormGfwBodyKg(sheep.gfwBodyKg ?? defaultBody);
+    setFormGfwSkirtingsKg(sheep.gfwSkirtingsKg ?? defaultSkirt);
+    setFormWoolSoundness(sheep.woolSoundness || 'strong');
+    setFormWoolCrimpStyle(sheep.woolCrimpStyle || 'medium');
+    setFormWoolHandle(sheep.woolHandle || 'normal');
     setFormLastShearingDate(sheep.lastShearingDate || '2026-03-01');
     setFormWoolColor(sheep.woolColor || 'ขาวนวล');
   };
@@ -445,10 +508,15 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
       woolGrade: formWoolGrade,
       woolMicron: Number(formWoolMicron) || undefined,
       woolStapleLengthCm: Number(formWoolStapleLengthCm) || undefined,
-      fleeceYieldKg: Number(formFleeceYieldKg) ?? undefined,
+      gfwBodyKg: Number(formGfwBodyKg) || 0,
+      gfwSkirtingsKg: Number(formGfwSkirtingsKg) || 0,
+      fleeceYieldKg: Number((Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(2)),
+      woolSoundness: formWoolSoundness,
+      woolCrimpStyle: formWoolCrimpStyle,
+      woolHandle: formWoolHandle,
       lastShearingDate: formLastShearingDate || undefined,
       woolColor: formWoolColor || undefined,
-      crimpPerInch: 10,
+      crimpPerInch: formWoolCrimpStyle === 'dense' ? 14 : formWoolCrimpStyle === 'medium' ? 10 : 6,
       fleeceQualityRating: 5,
     });
 
@@ -460,6 +528,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     if (!editingSheep || !formEarTag.trim()) return;
 
     const matchedPen = pens.find(p => p.id === formPenId) || pens[0];
+    const totalGfw = Number((Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(2));
 
     onUpdateSheep({
       ...editingSheep,
@@ -497,7 +566,13 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
       woolGrade: formWoolGrade,
       woolMicron: Number(formWoolMicron) || undefined,
       woolStapleLengthCm: Number(formWoolStapleLengthCm) || undefined,
-      fleeceYieldKg: Number(formFleeceYieldKg) ?? undefined,
+      gfwBodyKg: Number(formGfwBodyKg) || 0,
+      gfwSkirtingsKg: Number(formGfwSkirtingsKg) || 0,
+      fleeceYieldKg: totalGfw,
+      woolSoundness: formWoolSoundness,
+      woolCrimpStyle: formWoolCrimpStyle,
+      woolHandle: formWoolHandle,
+      crimpPerInch: formWoolCrimpStyle === 'dense' ? 14 : formWoolCrimpStyle === 'medium' ? 10 : 6,
       lastShearingDate: formLastShearingDate || undefined,
       woolColor: formWoolColor || undefined,
     });
@@ -851,6 +926,22 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                           </div>
                         </div>
                       )}
+
+                      {(sheep.woolSoundness === 'weak_base' ||
+                        sheep.woolSoundness === 'weak_mid' ||
+                        sheep.woolHandle === 'dry_harsh') && (
+                        <div className="pt-1.5 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-[#9C6B3F] font-semibold flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            <span>ผลตรวจขนแนะนำปรับอาหาร</span>
+                          </span>
+                          <span className="text-[#6E4826] truncate">
+                            {sheep.woolSoundness === 'weak_base' || sheep.woolSoundness === 'weak_mid'
+                              ? 'เสริมโปรตีน/พลังงาน'
+                              : 'เพิ่มพลังงานไขขน'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-3 border-t border-[#EAE2D0] flex items-center justify-between text-xs">
@@ -1050,52 +1141,139 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                 </div>
               </div>
 
-              {/* Section 2: ผลิตภัณฑ์ที่ได้จากแกะ */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Scissors className="w-4 h-4 text-[#9C6B3F]" />
-                  <h4 className="text-sm font-semibold text-[#1E3F2B]">
-                    ผลิตภัณฑ์ที่ได้จากแกะ (ขนแกะและเส้นใย)
-                  </h4>
-                </div>
+              {/* Section 2: พารามิเตอร์ขนแกะวัดเองหน้าคอก 4 ด้าน + คำแนะนำสูตรอาหาร */}
+              {(() => {
+                const bodyKg =
+                  viewingDetailSheep.gfwBodyKg ??
+                  (viewingDetailSheep.fleeceYieldKg != null
+                    ? Number((viewingDetailSheep.fleeceYieldKg * 0.78).toFixed(1))
+                    : null);
+                const skirtKg =
+                  viewingDetailSheep.gfwSkirtingsKg ??
+                  (viewingDetailSheep.fleeceYieldKg != null && bodyKg != null
+                    ? Number(Math.max(0, viewingDetailSheep.fleeceYieldKg - bodyKg).toFixed(1))
+                    : null);
+                const totalGfwKg =
+                  bodyKg != null || skirtKg != null
+                    ? Number(((bodyKg ?? 0) + (skirtKg ?? 0)).toFixed(1))
+                    : viewingDetailSheep.fleeceYieldKg ?? null;
+                const stapleCm = viewingDetailSheep.woolStapleLengthCm;
+                const woolAdj = analyzeWoolNutritionAdjustments(viewingDetailSheep);
+                const isWeakBreak =
+                  viewingDetailSheep.woolSoundness === 'weak_base' ||
+                  viewingDetailSheep.woolSoundness === 'weak_mid';
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#EAE2D0] bg-[#FAF6EE] rounded-xl border border-[#EAE2D0] text-center text-xs">
-                  <div className="p-3.5 min-w-0">
-                    <span className="text-[11px] text-[#7D7061] block">เกรดขน</span>
-                    <div className="mt-1 flex justify-center">
-                      <ExpandableText
-                        text={viewingDetailSheep.woolGrade || 'ไฟน์วูลละเอียด'}
-                        threshold={16}
-                        className="text-[#9C6B3F] font-semibold"
-                      />
+                return (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Scissors className="w-4 h-4 text-[#9C6B3F]" />
+                        <h4 className="text-sm font-semibold text-[#1E3F2B]">
+                          ผลประเมินขนแกะหน้าคอก (4 พารามิเตอร์)
+                        </h4>
+                      </div>
+                      {viewingDetailSheep.woolMicron && (
+                        <span className="text-[11px] font-medium text-[#6E6254]">
+                          เกรด {viewingDetailSheep.woolGrade || 'มาตรฐาน'} · {viewingDetailSheep.woolMicron} µm
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] text-xs">
+                      <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
+                        <span className="text-[11px] text-[#7D7061] block">① น้ำหนักขนดิบ (GFW)</span>
+                        <strong className="text-[#1E3F2B] font-mono text-sm font-semibold block mt-0.5">
+                          {totalGfwKg != null ? `รวม ${totalGfwKg} กก.` : '-'}
+                        </strong>
+                        {bodyKg != null && skirtKg != null && (
+                          <span className="text-[11px] text-[#6E6254] block mt-0.5">
+                            ขนลำตัว {bodyKg} กก. · เศษชายท้อง/ขา {skirtKg} กก.
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
+                        <span className="text-[11px] text-[#7D7061] block">② ความยาวช่อขน (กลางลำตัว)</span>
+                        <strong className="text-[#24201B] font-mono text-sm font-semibold block mt-0.5">
+                          {stapleCm != null
+                            ? `${stapleCm} ซม. (${Math.round(stapleCm * 10)} มม.)`
+                            : '-'}
+                        </strong>
+                        <span className="text-[11px] text-[#6E6254] block mt-0.5">
+                          วัดตามธรรมชาติ ไม่ดึงยืด
+                        </span>
+                      </div>
+
+                      <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
+                        <span className="text-[11px] text-[#7D7061] block">③ ความแข็งแรง (ดึง-ดีดช่อขน)</span>
+                        <strong
+                          className={`text-sm font-semibold block mt-0.5 ${
+                            isWeakBreak
+                              ? 'text-[#A63D2E]'
+                              : viewingDetailSheep.woolSoundness === 'weak_tip'
+                              ? 'text-[#9C6B3F]'
+                              : 'text-[#2E6B47]'
+                          }`}
+                        >
+                          {getSoundnessLabel(viewingDetailSheep.woolSoundness)}
+                        </strong>
+                        <span className="text-[11px] text-[#6E6254] block mt-0.5">
+                          {SOUNDNESS_OPTIONS.find(
+                            o => o.value === (viewingDetailSheep.woolSoundness || 'strong')
+                          )?.hint}
+                        </span>
+                      </div>
+
+                      <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
+                        <span className="text-[11px] text-[#7D7061] block">④ ความนุ่มและลอนขน (Crimp & Handle)</span>
+                        <strong className="text-[#1E3F2B] text-sm font-semibold block mt-0.5">
+                          {getCrimpLabel(viewingDetailSheep.woolCrimpStyle)} · {getHandleLabel(viewingDetailSheep.woolHandle)}
+                        </strong>
+                        <span className="text-[11px] text-[#6E6254] block mt-0.5">
+                          {HANDLE_OPTIONS.find(o => o.value === (viewingDetailSheep.woolHandle || 'normal'))?.hint}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Smart Plain-Thai Feeding Recommendation Box */}
+                    <div
+                      className={`p-4 rounded-xl border text-xs space-y-2 ${
+                        woolAdj.hasAdjustments
+                          ? 'bg-[#FBF4E7] border-[#DFCBB3]'
+                          : 'bg-[#EDF4EF] border-[#C5DEC9]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-semibold text-[#1E3F2B]">
+                        <Sparkles className="w-4 h-4 text-[#9C6B3F] shrink-0" />
+                        <span>{woolAdj.summaryHeadlineTh}</span>
+                      </div>
+                      {woolAdj.reasons.length > 0 && (
+                        <ul className="space-y-1.5 text-[#5C5346]">
+                          {woolAdj.reasons.map((r, i) => (
+                            <li key={`${r.key}-${i}`} className="flex items-start gap-2">
+                              <span
+                                className={`mt-0.5 shrink-0 font-bold ${
+                                  r.severity === 'action'
+                                    ? 'text-[#A63D2E]'
+                                    : r.severity === 'tip'
+                                    ? 'text-[#9C6B3F]'
+                                    : 'text-[#2E6B47]'
+                                }`}
+                              >
+                                {r.severity === 'action' ? '▲' : r.severity === 'tip' ? '•' : '✓'}
+                              </span>
+                              <span>
+                                <strong className="text-[#24201B]">{r.titleTh}:</strong>{' '}
+                                {r.effectTh}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
-
-                  <div className="p-3.5">
-                    <span className="text-[11px] text-[#7D7061] block">ขนาดเส้นใยขน</span>
-                    <strong className="text-[#1E3F2B] font-mono text-base font-semibold block mt-0.5">
-                      {viewingDetailSheep.woolMicron ? `${viewingDetailSheep.woolMicron} µm` : '-'}
-                    </strong>
-                    <span className="text-[10px] text-[#8C7F6E]">ไมครอน</span>
-                  </div>
-
-                  <div className="p-3.5">
-                    <span className="text-[11px] text-[#7D7061] block">ความยาวเส้นใยขน</span>
-                    <strong className="text-[#24201B] font-mono text-base font-semibold block mt-0.5">
-                      {viewingDetailSheep.woolStapleLengthCm ? `${viewingDetailSheep.woolStapleLengthCm} ซม.` : '-'}
-                    </strong>
-                    <span className="text-[10px] text-[#8C7F6E]">Staple Length</span>
-                  </div>
-
-                  <div className="p-3.5">
-                    <span className="text-[11px] text-[#7D7061] block">ปริมาณขนตัด/ปี</span>
-                    <strong className="text-[#24201B] font-mono text-base font-semibold block mt-0.5">
-                      {viewingDetailSheep.fleeceYieldKg ? `${viewingDetailSheep.fleeceYieldKg} กก.` : '-'}
-                    </strong>
-                    <span className="text-[10px] text-[#8C7F6E]">ผลผลิตประจำปี</span>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Section 3: ADG & Notes */}
               <div className="bg-[#EDF3EE] rounded-xl p-4 border border-[#C5D6C9] space-y-2 text-xs">
@@ -1247,7 +1425,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
 
                   <div>
                     <label className="block text-[#5C5346] font-semibold mb-1">
-                      สายพันธุ์แกะขนในฟาร์ม (3 สายพันธุ์หลัก) *
+                      สายพันธุ์แกะขนในฟาร์ม *
                     </label>
                     <select
                       value={formBreed}
@@ -1328,16 +1506,22 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                         onChange={e => setFormSireName(e.target.value)}
                         className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded text-xs text-[#24201B]"
                       />
-                      <input
-                        type="text"
-                        placeholder="สายพันธุ์พ่อ เช่น เมอริโน (Merino)"
+                      <select
+                        aria-label="สายพันธุ์พ่อพันธุ์"
                         value={formSireBreed}
                         onChange={e => {
                           setFormSireBreed(e.target.value);
                           handleAutoCalcBlood(e.target.value, formDamBreed);
                         }}
                         className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded text-xs text-[#5C5346]"
-                      />
+                      >
+                        <option value="">-- เลือกสายพันธุ์พ่อ (ถ้าทราบ) --</option>
+                        {FARM_BREEDS.map(b => (
+                          <option key={b.value} value={b.value}>
+                            {b.value}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0] space-y-2">
@@ -1349,16 +1533,22 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                         onChange={e => setFormDamName(e.target.value)}
                         className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded text-xs text-[#24201B]"
                       />
-                      <input
-                        type="text"
-                        placeholder="สายพันธุ์แม่ เช่น ดอร์เซท (Dorset)"
+                      <select
+                        aria-label="สายพันธุ์แม่พันธุ์"
                         value={formDamBreed}
                         onChange={e => {
                           setFormDamBreed(e.target.value);
                           handleAutoCalcBlood(formSireBreed, e.target.value);
                         }}
                         className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded text-xs text-[#5C5346]"
-                      />
+                      >
+                        <option value="">-- เลือกสายพันธุ์แม่ (ถ้าทราบ) --</option>
+                        {FARM_BREEDS.map(b => (
+                          <option key={b.value} value={b.value}>
+                            {b.value}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -1440,53 +1630,217 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                 </div>
               </div>
 
-              {/* Part 4: Wool */}
+              {/* Part 4: 5 Pen-Side Wool Evaluation Parameters */}
               <div className="space-y-3">
-                <span className="text-xs font-semibold text-[#9C6B3F] block">
-                  หมวดที่ 4: ข้อมูลผลิตภัณฑ์ขนแกะ
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] text-xs">
-                  <div>
-                    <label className="block text-[#5C5346] font-semibold mb-1">เกรดขน</label>
-                    <input
-                      type="text"
-                      value={formWoolGrade}
-                      onChange={e => setFormWoolGrade(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded text-[#24201B]"
-                    />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[#9C6B3F] block">
+                    หมวดที่ 4: พารามิเตอร์ขนแกะ (วัดเองหน้าคอกได้ ระบบจะนำไปช่วยคำนวณสูตรอาหารให้อัตโนมัติ)
+                  </span>
+                </div>
+
+                <div className="bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] space-y-4 text-xs">
+                  {/* 1. Greasy Fleece Weight (GFW) + 2. Staple Length */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#1E3F2B]">
+                          1. น้ำหนักขนดิบหลังตัด (GFW)
+                        </span>
+                        <span className="font-mono font-semibold text-[#9C6B3F]">
+                          รวม {(Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(1)} กก.
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#6E6254]">
+                        ชั่งทันทีหลังตัด แยกส่วนขนลำตัวออกจากเศษขนชายท้องและขา
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[11px] text-[#5C5346] mb-1">
+                            ขนลำตัว (กก.)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={formGfwBodyKg}
+                            onChange={e => setFormGfwBodyKg(parseFloat(e.target.value) || 0)}
+                            className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-[#5C5346] mb-1">
+                            ชายท้อง/ขา (กก.)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={formGfwSkirtingsKg}
+                            onChange={e => setFormGfwSkirtingsKg(parseFloat(e.target.value) || 0)}
+                            className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#24201B] font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[#1E3F2B]">
+                            2. ความยาวช่อขน (Staple Length)
+                          </span>
+                          <span className="font-mono font-semibold text-[#2E6B47]">
+                            {Math.round((Number(formWoolStapleLengthCm) || 0) * 10)} มม.
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#6E6254] mt-1">
+                          ใช้ไม้บรรทัดวัดกลางลำตัวตามธรรมชาติ (ห้ามดึงให้ยืด)
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-[#5C5346] mb-1">
+                          ความยาวที่วัดได้ (ซม.)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={formWoolStapleLengthCm}
+                          onChange={e => setFormWoolStapleLengthCm(parseFloat(e.target.value) || 0)}
+                          className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[#5C5346] font-semibold mb-1">ขนาดไมครอน (µm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={formWoolMicron}
-                      onChange={e => setFormWoolMicron(parseFloat(e.target.value) || 0)}
-                      className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded text-[#1E3F2B] font-mono font-semibold"
-                    />
+                  {/* 3. Soundness / Hand-break test */}
+                  <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-semibold text-[#1E3F2B]">
+                        3. ความแข็งแรงเบื้องต้น (จับช่อขนเท่าดินสอแล้วดีดเบาๆ)
+                      </span>
+                      <span className="text-[11px] text-[#6E6254]">
+                        ขาดง่าย = ต้องการโปรตีน/พลังงานเพิ่ม
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {SOUNDNESS_OPTIONS.map(opt => {
+                        const active = formWoolSoundness === opt.value;
+                        const isWeak = opt.value === 'weak_base' || opt.value === 'weak_mid';
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setFormWoolSoundness(opt.value)}
+                            className={`p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
+                              active
+                                ? isWeak
+                                  ? 'bg-[#FBEEEC] border-[#A63D2E] text-[#A63D2E]'
+                                  : 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                                : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                            }`}
+                          >
+                            <span className="font-semibold block">{opt.label}</span>
+                            <span
+                              className={`text-[10px] block mt-0.5 ${
+                                active
+                                  ? isWeak
+                                    ? 'text-[#8C372B]'
+                                    : 'text-[#D5E0D7]'
+                                  : 'text-[#7D7061]'
+                              }`}
+                            >
+                              {opt.hint}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[#5C5346] font-semibold mb-1">ความยาวขน (ซม.)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={formWoolStapleLengthCm}
-                      onChange={e => setFormWoolStapleLengthCm(parseFloat(e.target.value) || 0)}
-                      className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded text-[#24201B] font-mono"
-                    />
+                  {/* 4. Crimp & Handle */}
+                  <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-3">
+                    <span className="font-semibold text-[#1E3F2B] block">
+                      4. ความนุ่มและลอนขน (Crimp & Handle)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-[#5C5346] font-medium block">
+                          ความถี่ของลอนคลื่นบนช่อขน
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {CRIMP_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setFormWoolCrimpStyle(opt.value)}
+                              className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
+                                formWoolCrimpStyle === opt.value
+                                  ? 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                                  : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                              }`}
+                            >
+                              <span className="font-semibold text-[11px] block leading-tight">
+                                {opt.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-[#5C5346] font-medium block">
+                          สัมผัสความนุ่มลื่นของไขขน
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {HANDLE_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setFormWoolHandle(opt.value)}
+                              className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
+                                formWoolHandle === opt.value
+                                  ? opt.value === 'dry_harsh'
+                                    ? 'bg-[#F9F2E4] border-[#9C6B3F] text-[#6E4826]'
+                                    : 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                                  : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                              }`}
+                            >
+                              <span className="font-semibold text-[11px] block leading-tight">
+                                {opt.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[#5C5346] font-semibold mb-1">ขนตัด/ปี (กก.)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={formFleeceYieldKg}
-                      onChange={e => setFormFleeceYieldKg(parseFloat(e.target.value) || 0)}
-                      className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded text-[#24201B] font-mono"
-                    />
+                  {/* Optional classing/micron info */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
+                        เกรดขน (ถ้าทราบ)
+                      </label>
+                      <input
+                        type="text"
+                        value={formWoolGrade}
+                        onChange={e => setFormWoolGrade(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#24201B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
+                        ขนาดไมครอน µm (ถ้ามีเครื่องวัด)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={formWoolMicron}
+                        onChange={e => setFormWoolMicron(parseFloat(e.target.value) || 0)}
+                        className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

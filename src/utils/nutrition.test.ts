@@ -437,5 +437,102 @@ test('encodeCompactSharePayload & decodeCompactSharePayload preserve Thai farm r
   assert.equal(decoded!.pens[0].sheepCount, 20);
 });
 
+import { analyzeWoolNutritionAdjustments } from './nutrition';
+import {
+  ALL_THAI_PROVINCES,
+  formatThaiFarmLocation,
+  getDistrictsForProvince,
+} from '../data/thailandLocations';
+
+test('analyzeWoolNutritionAdjustments returns zero adjustments for strong, well-grown wool', () => {
+  const healthyWoolSheep: Sheep = {
+    id: 'w-good',
+    earTag: 'W-01',
+    name: 'ปุยเมฆ',
+    breed: 'เมอริโน (Merino)',
+    gender: 'female',
+    birthDate: '2024-01-01',
+    ageMonths: 24,
+    weightKg: 60,
+    currentAdgGrams: 180,
+    stage: 'wool_maintenance',
+    bcs: 3.5,
+    penId: 'pen-a',
+    pen: 'คอก A',
+    healthStatus: 'healthy',
+    gfwBodyKg: 3.8,
+    gfwSkirtingsKg: 0.9,
+    woolStapleLengthCm: 10.5,
+    woolSoundness: 'strong',
+    woolCrimpStyle: 'dense',
+    woolHandle: 'soft_greasy',
+  };
+
+  const adj = analyzeWoolNutritionAdjustments(healthyWoolSheep);
+  assert.equal(adj.hasPenSideData, true);
+  assert.equal(adj.hasAdjustments, false);
+  assert.equal(adj.cpDeltaPct, 0);
+  assert.equal(adj.tdnDeltaPct, 0);
+  assert.equal(adj.roughageMinPctDelta, 0);
+
+  const req = calculateSheepNutrientRequirement(60, 'wool_maintenance', 180, adj);
+  assert.equal(req.cpPercent, 10.5);
+  assert.equal(req.tdnPercent, 58.0);
+  assert.equal(req.targetRcRatio, '75:25');
+});
+
+test('analyzeWoolNutritionAdjustments boosts CP and TDN with safe physiological caps', () => {
+  const stressedSheep: Sheep = {
+    id: 'w-stress',
+    earTag: 'W-02',
+    name: 'มอมแมม',
+    breed: 'เมอริโน (Merino)',
+    gender: 'female',
+    birthDate: '2024-01-01',
+    ageMonths: 24,
+    weightKg: 60,
+    currentAdgGrams: 140,
+    stage: 'wool_growing',
+    bcs: 3.0,
+    penId: 'pen-b',
+    pen: 'คอก B',
+    healthStatus: 'monitoring',
+    gfwBodyKg: 4.5,
+    gfwSkirtingsKg: 1.5, // total 6.0 kg >= 5.5 -> +0.5 CP
+    woolStapleLengthCm: 5.8, // < 7.0 -> +1.5 TDN
+    woolSoundness: 'weak_base', // +1.0 CP, +2.0 TDN
+    woolCrimpStyle: 'loose',
+    woolHandle: 'dry_harsh', // +1.5 TDN (raw TDN = 5.0 -> capped at 4.0)
+  };
+
+  const adj = analyzeWoolNutritionAdjustments(stressedSheep);
+  assert.equal(adj.hasAdjustments, true);
+  assert.equal(adj.cpDeltaPct, 1.5); // 1.0 (soundness) + 0.5 (high GFW)
+  assert.equal(adj.tdnDeltaPct, 4.0); // 2.0 + 1.5 + 1.5 = 5.0 -> capped at 4.0
+  assert.equal(adj.roughageMinPctDelta, 0);
+  assert.ok(adj.reasons.some(r => r.key === 'soundness' && r.severity === 'action'));
+  assert.ok(adj.reasons.some(r => r.key === 'staple' && r.severity === 'action'));
+  assert.ok(adj.reasons.some(r => r.key === 'handle' && r.severity === 'action'));
+
+  const baseReq = calculateSheepNutrientRequirement(60, 'wool_growing', 140);
+  const adjustedReq = calculateSheepNutrientRequirement(60, 'wool_growing', 140, adj);
+  assert.equal(baseReq.cpPercent, 13.5);
+  assert.equal(adjustedReq.cpPercent, 15.0);
+  assert.equal(adjustedReq.tdnPercent, 68.0);
+  assert.equal(adjustedReq.targetRcRatio, '55:45');
+});
+
+test('Thailand provinces and districts lookup covers all 77 provinces and formats locations cleanly', () => {
+  assert.equal(ALL_THAI_PROVINCES.length, 77);
+  for (const prov of ALL_THAI_PROVINCES) {
+    assert.ok(getDistrictsForProvince(prov).length >= 3, `${prov} should have districts`);
+  }
+  assert.ok(getDistrictsForProvince('เชียงใหม่').includes('จอมทอง'));
+  assert.equal(formatThaiFarmLocation('เชียงใหม่', 'จอมทอง'), 'จ.เชียงใหม่ (อ.จอมทอง)');
+  assert.equal(formatThaiFarmLocation('กรุงเทพมหานคร', 'จตุจักร'), 'กรุงเทพมหานคร (เขตจตุจักร)');
+  assert.equal(formatThaiFarmLocation(''), '');
+});
+
+
 
 
