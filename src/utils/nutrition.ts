@@ -41,6 +41,125 @@ export interface WoolNutritionAdjustment {
   };
 }
 
+export interface PenWoolOverviewStats {
+  totalSheep: number;
+  recordedWeightCount: number;
+  recordedMicronCount: number;
+  recordedStapleCount: number;
+  recordedSoundnessCount: number;
+  totalWoolKg: number;
+  avgWoolKg: number | null;
+  avgMicron: number | null;
+  avgStapleCm: number | null;
+  strongPct: number | null;
+  denseCrimpCount: number;
+  softHandleCount: number;
+  dominantGrade: string | null;
+}
+
+/**
+ * คำนวณสรุปข้อมูลขนแกะเฉลี่ยประจำคอกหรือทั้งฝูง (น้ำหนักขน กก., ไมครอน, ความยาวช่อขน, ความแข็งแรง)
+ */
+export function computePenWoolStats(sheepInPen: Sheep[]): PenWoolOverviewStats {
+  const totalSheep = sheepInPen.length;
+  if (totalSheep === 0) {
+    return {
+      totalSheep: 0,
+      recordedWeightCount: 0,
+      recordedMicronCount: 0,
+      recordedStapleCount: 0,
+      recordedSoundnessCount: 0,
+      totalWoolKg: 0,
+      avgWoolKg: null,
+      avgMicron: null,
+      avgStapleCm: null,
+      strongPct: null,
+      denseCrimpCount: 0,
+      softHandleCount: 0,
+      dominantGrade: null,
+    };
+  }
+
+  const woolKgValues: number[] = [];
+  const micronValues: number[] = [];
+  const stapleValues: number[] = [];
+  let strongCount = 0;
+  let recordedSoundnessCount = 0;
+  let denseCrimpCount = 0;
+  let softHandleCount = 0;
+  const gradeCounts = new Map<string, number>();
+
+  for (const s of sheepInPen) {
+    const hasSplit = s.gfwBodyKg != null || s.gfwSkirtingsKg != null;
+    const woolKg = hasSplit
+      ? Number(((s.gfwBodyKg ?? 0) + (s.gfwSkirtingsKg ?? 0)).toFixed(2))
+      : s.fleeceYieldKg != null
+      ? Number(s.fleeceYieldKg)
+      : null;
+
+    if (woolKg != null && woolKg > 0) {
+      woolKgValues.push(woolKg);
+    }
+    if (s.woolMicron != null && s.woolMicron > 0) {
+      micronValues.push(Number(s.woolMicron));
+    }
+    if (s.woolStapleLengthCm != null && s.woolStapleLengthCm > 0) {
+      stapleValues.push(Number(s.woolStapleLengthCm));
+    }
+    if (s.woolSoundness) {
+      recordedSoundnessCount++;
+      if (s.woolSoundness === 'strong') strongCount++;
+    }
+    if (s.woolCrimpStyle === 'dense') denseCrimpCount++;
+    if (s.woolHandle === 'soft_greasy') softHandleCount++;
+    if (s.woolGrade && s.woolGrade.trim()) {
+      const key = s.woolGrade.trim();
+      gradeCounts.set(key, (gradeCounts.get(key) || 0) + 1);
+    }
+  }
+
+  const totalWoolKg = Number(woolKgValues.reduce((sum, v) => sum + v, 0).toFixed(1));
+  const avgWoolKg =
+    woolKgValues.length > 0
+      ? Number((woolKgValues.reduce((sum, v) => sum + v, 0) / woolKgValues.length).toFixed(2))
+      : null;
+  const avgMicron =
+    micronValues.length > 0
+      ? Number((micronValues.reduce((sum, v) => sum + v, 0) / micronValues.length).toFixed(1))
+      : null;
+  const avgStapleCm =
+    stapleValues.length > 0
+      ? Number((stapleValues.reduce((sum, v) => sum + v, 0) / stapleValues.length).toFixed(1))
+      : null;
+  const strongPct =
+    recordedSoundnessCount > 0 ? Math.round((strongCount / recordedSoundnessCount) * 100) : null;
+
+  let dominantGrade: string | null = null;
+  let maxGradeCount = 0;
+  for (const [grade, count] of gradeCounts.entries()) {
+    if (count > maxGradeCount) {
+      maxGradeCount = count;
+      dominantGrade = grade;
+    }
+  }
+
+  return {
+    totalSheep,
+    recordedWeightCount: woolKgValues.length,
+    recordedMicronCount: micronValues.length,
+    recordedStapleCount: stapleValues.length,
+    recordedSoundnessCount,
+    totalWoolKg,
+    avgWoolKg,
+    avgMicron,
+    avgStapleCm,
+    strongPct,
+    denseCrimpCount,
+    softHandleCount,
+    dominantGrade,
+  };
+}
+
 /**
  * วิเคราะห์พารามิเตอร์ขนแกะที่วัดเองหน้าคอก 4 ด้าน เพื่อแปลเป็นคำแนะนำปรับสูตรอาหารแบบเข้าใจง่าย
  */

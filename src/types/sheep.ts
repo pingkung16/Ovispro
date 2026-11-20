@@ -159,13 +159,14 @@ export interface FormulatedRation {
   createdAt: string;
 }
 
-// 5 กิจกรรมฟาร์มหลักตามแบบบันทึกงานแกะขน
+// กิจกรรมฟาร์มหลักตามแบบบันทึกงานแกะขน
 export type FarmActivityType = 
   | 'weight'          // 1. ชั่งน้ำหนัก
   | 'feeding'         // 2. การให้อาหาร
   | 'health_vaccine'  // 3. การฉีดวัคซีน + ถ่ายพยาธิ
   | 'breeding'        // 4. การผสมพันธุ์
-  | 'lambing';        // 5. การคลอด
+  | 'lambing'         // 5. การคลอด
+  | 'shearing';       // 6. ตัดขนและชั่งน้ำหนักขน (กก.)
 
 export interface FarmLog {
   id: string;
@@ -201,6 +202,20 @@ export interface FarmLog {
   lambCount?: number;             // จำนวนลูกแกะที่คลอด
   lambGenders?: string;           // เพศลูกแกะ เช่น "ผู้ 1, เมีย 1"
   lambSurvivalRate?: string;      // อัตราการรอด เช่น "100% (รอดทั้งหมด)"
+
+  // 6. ฟิลด์ตัดขน / น้ำหนักขน (กก.) & ข้อมูลซิงค์ไปยังทะเบียนแกะ
+  woolWeightKg?: number;          // น้ำหนักขนรวมที่ตัดได้ (กก.)
+  woolBodyKg?: number;            // น้ำหนักขนลำตัว (กก.)
+  woolSkirtingsKg?: number;       // น้ำหนักเศษขนชายท้องและขา (กก.)
+  woolStapleLengthCm?: number;    // ความยาวช่อขนที่วัดได้ (ซม.)
+  woolMicron?: number;            // ความละเอียดเส้นใย (µm)
+  woolGrade?: string;             // เกรดขน
+  woolSoundness?: WoolSoundness;
+  woolCrimpStyle?: WoolCrimpStyle;
+  woolHandle?: WoolHandle;
+  healthSubType?: 'vaccine' | 'deworm' | 'both' | 'hoof';
+  healthStatusAfter?: Sheep['healthStatus'];
+  feedRationId?: string;
 
   notes?: string;
 }

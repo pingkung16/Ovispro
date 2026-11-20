@@ -33,7 +33,7 @@ import {
   WoolCrimpStyle,
   WoolHandle,
 } from '../types/sheep';
-import { analyzeWoolNutritionAdjustments } from '../utils/nutrition';
+import { analyzeWoolNutritionAdjustments, computePenWoolStats } from '../utils/nutrition';
 import { INITIAL_PENS } from '../data/initialData';
 import { getBreedPhoto } from '../data/breedPhotos';
 import onlysheepsCupidLogo from '../assets/images/onlysheeps_cupid_logo_1794824689407.jpg';
@@ -108,13 +108,13 @@ const HANDLE_OPTIONS: { value: WoolHandle; label: string; hint: string }[] = [
 ];
 
 const getSoundnessLabel = (v?: WoolSoundness) =>
-  SOUNDNESS_OPTIONS.find(o => o.value === v)?.label || 'เหนียวดี ไม่ขาด';
+  v ? SOUNDNESS_OPTIONS.find(o => o.value === v)?.label || 'ยังไม่บันทึก' : 'ยังไม่บันทึก';
 
 const getCrimpLabel = (v?: WoolCrimpStyle) =>
-  CRIMP_OPTIONS.find(o => o.value === v)?.label || 'ลอนปานกลาง';
+  v ? CRIMP_OPTIONS.find(o => o.value === v)?.label || 'ยังไม่บันทึก' : 'ยังไม่บันทึก';
 
 const getHandleLabel = (v?: WoolHandle) =>
-  HANDLE_OPTIONS.find(o => o.value === v)?.label || 'ปกติ';
+  v ? HANDLE_OPTIONS.find(o => o.value === v)?.label || 'ยังไม่บันทึก' : 'ยังไม่บันทึก';
 
 /**
  * ข้อความแบบคลิกเพื่อขยายดูทั้งหมดเมื่อข้อความยาวเกินพื้นที่ (จาก ... เป็นข้อความเต็ม)
@@ -267,17 +267,19 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
   const [formDewormLastDate, setFormDewormLastDate] = useState('2026-08-20');
   const [formHoofTrimLastDate, setFormHoofTrimLastDate] = useState('2026-10-01');
 
-  // Form states - Wool Specific & 4 Pen-Side Evaluation Attributes
-  const [formWoolGrade, setFormWoolGrade] = useState('ซูเปอร์ไฟน์ (< 18.5 µm)');
-  const [formWoolMicron, setFormWoolMicron] = useState<number>(18.5);
-  const [formWoolStapleLengthCm, setFormWoolStapleLengthCm] = useState<number>(10.5);
-  const [formGfwBodyKg, setFormGfwBodyKg] = useState<number>(4.8);
-  const [formGfwSkirtingsKg, setFormGfwSkirtingsKg] = useState<number>(1.4);
-  const [formWoolSoundness, setFormWoolSoundness] = useState<WoolSoundness>('strong');
-  const [formWoolCrimpStyle, setFormWoolCrimpStyle] = useState<WoolCrimpStyle>('dense');
-  const [formWoolHandle, setFormWoolHandle] = useState<WoolHandle>('soft_greasy');
-  const [formLastShearingDate, setFormLastShearingDate] = useState<string>('2026-03-01');
-  const [formWoolColor, setFormWoolColor] = useState<string>('ขาวนวลสะอาด');
+  // Form states - Wool Specific & Pen-Side Evaluation Attributes (Optional during registration)
+  const [showOptionalWoolFields, setShowOptionalWoolFields] = useState(false);
+  const [formFleeceYieldKg, setFormFleeceYieldKg] = useState<string>('');
+  const [formWoolGrade, setFormWoolGrade] = useState<string>('');
+  const [formWoolMicron, setFormWoolMicron] = useState<string>('');
+  const [formWoolStapleLengthCm, setFormWoolStapleLengthCm] = useState<string>('');
+  const [formGfwBodyKg, setFormGfwBodyKg] = useState<string>('');
+  const [formGfwSkirtingsKg, setFormGfwSkirtingsKg] = useState<string>('');
+  const [formWoolSoundness, setFormWoolSoundness] = useState<WoolSoundness | ''>('');
+  const [formWoolCrimpStyle, setFormWoolCrimpStyle] = useState<WoolCrimpStyle | ''>('');
+  const [formWoolHandle, setFormWoolHandle] = useState<WoolHandle | ''>('');
+  const [formLastShearingDate, setFormLastShearingDate] = useState<string>('');
+  const [formWoolColor, setFormWoolColor] = useState<string>('');
 
   const pens = propPens && propPens.length > 0 ? propPens : INITIAL_PENS;
   const rationsMap = useMemo(() => {
@@ -338,6 +340,11 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
       return s.penId === selectedPenId;
     });
   }, [sheepList, searchTerm, selectedPenId, viewMode]);
+
+  const penWoolStats = useMemo(() => {
+    const penSheep = sheepList.filter(s => s.penId === selectedPenId);
+    return computePenWoolStats(penSheep);
+  }, [sheepList, selectedPenId]);
 
   const penStats = useMemo(() => {
     const penSheep = sheepList.filter(s => s.penId === selectedPenId);
@@ -405,16 +412,18 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     setFormDewormLastDate('2026-08-20');
     setFormHoofTrimLastDate('2026-10-01');
 
-    setFormWoolGrade('ซูเปอร์ไฟน์ (< 18.5 µm)');
-    setFormWoolMicron(18.5);
-    setFormWoolStapleLengthCm(10.5);
-    setFormGfwBodyKg(4.8);
-    setFormGfwSkirtingsKg(1.4);
-    setFormWoolSoundness('strong');
-    setFormWoolCrimpStyle('dense');
-    setFormWoolHandle('soft_greasy');
-    setFormLastShearingDate('2026-03-01');
-    setFormWoolColor('ขาวนวลสะอาด');
+    setShowOptionalWoolFields(false);
+    setFormFleeceYieldKg('');
+    setFormWoolGrade('');
+    setFormWoolMicron('');
+    setFormWoolStapleLengthCm('');
+    setFormGfwBodyKg('');
+    setFormGfwSkirtingsKg('');
+    setFormWoolSoundness('');
+    setFormWoolCrimpStyle('');
+    setFormWoolHandle('');
+    setFormLastShearingDate('');
+    setFormWoolColor('');
   };
 
   const handleOpenAddModal = () => {
@@ -452,19 +461,82 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     setFormDewormLastDate(sheep.dewormLastDate || '2026-08-20');
     setFormHoofTrimLastDate(sheep.hoofTrimLastDate || '2026-10-01');
 
-    setFormWoolGrade(sheep.woolGrade || 'ไฟน์วูลละเอียด (19–21 µm)');
-    setFormWoolMicron(sheep.woolMicron || 19.5);
-    setFormWoolStapleLengthCm(sheep.woolStapleLengthCm || 10.5);
-    const totalYield = sheep.fleeceYieldKg ?? 6.0;
-    const defaultBody = Number((totalYield * 0.78).toFixed(1));
-    const defaultSkirt = Number(Math.max(0, totalYield - defaultBody).toFixed(1));
-    setFormGfwBodyKg(sheep.gfwBodyKg ?? defaultBody);
-    setFormGfwSkirtingsKg(sheep.gfwSkirtingsKg ?? defaultSkirt);
-    setFormWoolSoundness(sheep.woolSoundness || 'strong');
-    setFormWoolCrimpStyle(sheep.woolCrimpStyle || 'medium');
-    setFormWoolHandle(sheep.woolHandle || 'normal');
-    setFormLastShearingDate(sheep.lastShearingDate || '2026-03-01');
-    setFormWoolColor(sheep.woolColor || 'ขาวนวล');
+    setShowOptionalWoolFields(true);
+    setFormWoolGrade(sheep.woolGrade || '');
+    setFormWoolMicron(sheep.woolMicron != null && sheep.woolMicron > 0 ? String(sheep.woolMicron) : '');
+    setFormWoolStapleLengthCm(
+      sheep.woolStapleLengthCm != null && sheep.woolStapleLengthCm > 0
+        ? String(sheep.woolStapleLengthCm)
+        : ''
+    );
+    const hasSplit = sheep.gfwBodyKg != null || sheep.gfwSkirtingsKg != null;
+    const totalYield = hasSplit
+      ? Number(((sheep.gfwBodyKg ?? 0) + (sheep.gfwSkirtingsKg ?? 0)).toFixed(2))
+      : sheep.fleeceYieldKg ?? null;
+    setFormFleeceYieldKg(totalYield != null && totalYield > 0 ? String(totalYield) : '');
+    setFormGfwBodyKg(sheep.gfwBodyKg != null && sheep.gfwBodyKg > 0 ? String(sheep.gfwBodyKg) : '');
+    setFormGfwSkirtingsKg(
+      sheep.gfwSkirtingsKg != null && sheep.gfwSkirtingsKg > 0 ? String(sheep.gfwSkirtingsKg) : ''
+    );
+    setFormWoolSoundness(sheep.woolSoundness || '');
+    setFormWoolCrimpStyle(sheep.woolCrimpStyle || '');
+    setFormWoolHandle(sheep.woolHandle || '');
+    setFormLastShearingDate(sheep.lastShearingDate || '');
+    setFormWoolColor(sheep.woolColor || '');
+  };
+
+  const buildOptionalWoolPayload = () => {
+    const parsedBody = formGfwBodyKg.trim() !== '' ? parseFloat(formGfwBodyKg) : NaN;
+    const parsedSkirt = formGfwSkirtingsKg.trim() !== '' ? parseFloat(formGfwSkirtingsKg) : NaN;
+    const parsedTotalDirect = formFleeceYieldKg.trim() !== '' ? parseFloat(formFleeceYieldKg) : NaN;
+
+    const gfwBodyKg = !Number.isNaN(parsedBody) && parsedBody > 0 ? Number(parsedBody.toFixed(2)) : undefined;
+    const gfwSkirtingsKg =
+      !Number.isNaN(parsedSkirt) && parsedSkirt >= 0 && formGfwSkirtingsKg.trim() !== ''
+        ? Number(parsedSkirt.toFixed(2))
+        : undefined;
+
+    let fleeceYieldKg: number | undefined;
+    if (gfwBodyKg != null || gfwSkirtingsKg != null) {
+      const sum = Number(((gfwBodyKg ?? 0) + (gfwSkirtingsKg ?? 0)).toFixed(2));
+      fleeceYieldKg = sum > 0 ? sum : undefined;
+    } else if (!Number.isNaN(parsedTotalDirect) && parsedTotalDirect > 0) {
+      fleeceYieldKg = Number(parsedTotalDirect.toFixed(2));
+    }
+
+    const parsedMicron = formWoolMicron.trim() !== '' ? parseFloat(formWoolMicron) : NaN;
+    const woolMicron = !Number.isNaN(parsedMicron) && parsedMicron > 0 ? Number(parsedMicron.toFixed(1)) : undefined;
+
+    const parsedStaple = formWoolStapleLengthCm.trim() !== '' ? parseFloat(formWoolStapleLengthCm) : NaN;
+    const woolStapleLengthCm =
+      !Number.isNaN(parsedStaple) && parsedStaple > 0 ? Number(parsedStaple.toFixed(1)) : undefined;
+
+    const woolSoundness = formWoolSoundness || undefined;
+    const woolCrimpStyle = formWoolCrimpStyle || undefined;
+    const woolHandle = formWoolHandle || undefined;
+    const crimpPerInch =
+      woolCrimpStyle === 'dense'
+        ? 14
+        : woolCrimpStyle === 'medium'
+        ? 10
+        : woolCrimpStyle === 'loose'
+        ? 6
+        : undefined;
+
+    return {
+      woolGrade: formWoolGrade.trim() || undefined,
+      woolMicron,
+      woolStapleLengthCm,
+      gfwBodyKg,
+      gfwSkirtingsKg,
+      fleeceYieldKg,
+      woolSoundness,
+      woolCrimpStyle,
+      woolHandle,
+      lastShearingDate: formLastShearingDate.trim() || undefined,
+      woolColor: formWoolColor.trim() || undefined,
+      crimpPerInch,
+    };
   };
 
   const handleSaveAdd = (e: React.FormEvent) => {
@@ -472,6 +544,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     if (!formEarTag.trim()) return;
 
     const matchedPen = pens.find(p => p.id === formPenId) || pens[0];
+    const woolPayload = buildOptionalWoolPayload();
 
     onAddSheep({
       earTag: formEarTag.trim(),
@@ -505,19 +578,8 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
       dewormLastDate: formDewormLastDate || undefined,
       hoofTrimLastDate: formHoofTrimLastDate || undefined,
 
-      woolGrade: formWoolGrade,
-      woolMicron: Number(formWoolMicron) || undefined,
-      woolStapleLengthCm: Number(formWoolStapleLengthCm) || undefined,
-      gfwBodyKg: Number(formGfwBodyKg) || 0,
-      gfwSkirtingsKg: Number(formGfwSkirtingsKg) || 0,
-      fleeceYieldKg: Number((Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(2)),
-      woolSoundness: formWoolSoundness,
-      woolCrimpStyle: formWoolCrimpStyle,
-      woolHandle: formWoolHandle,
-      lastShearingDate: formLastShearingDate || undefined,
-      woolColor: formWoolColor || undefined,
-      crimpPerInch: formWoolCrimpStyle === 'dense' ? 14 : formWoolCrimpStyle === 'medium' ? 10 : 6,
-      fleeceQualityRating: 5,
+      ...woolPayload,
+      fleeceQualityRating: woolPayload.fleeceYieldKg || woolPayload.woolSoundness ? 5 : undefined,
     });
 
     setIsAddModalOpen(false);
@@ -528,7 +590,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
     if (!editingSheep || !formEarTag.trim()) return;
 
     const matchedPen = pens.find(p => p.id === formPenId) || pens[0];
-    const totalGfw = Number((Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(2));
+    const woolPayload = buildOptionalWoolPayload();
 
     onUpdateSheep({
       ...editingSheep,
@@ -563,18 +625,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
       dewormLastDate: formDewormLastDate || undefined,
       hoofTrimLastDate: formHoofTrimLastDate || undefined,
 
-      woolGrade: formWoolGrade,
-      woolMicron: Number(formWoolMicron) || undefined,
-      woolStapleLengthCm: Number(formWoolStapleLengthCm) || undefined,
-      gfwBodyKg: Number(formGfwBodyKg) || 0,
-      gfwSkirtingsKg: Number(formGfwSkirtingsKg) || 0,
-      fleeceYieldKg: totalGfw,
-      woolSoundness: formWoolSoundness,
-      woolCrimpStyle: formWoolCrimpStyle,
-      woolHandle: formWoolHandle,
-      crimpPerInch: formWoolCrimpStyle === 'dense' ? 14 : formWoolCrimpStyle === 'medium' ? 10 : 6,
-      lastShearingDate: formLastShearingDate || undefined,
-      woolColor: formWoolColor || undefined,
+      ...woolPayload,
     });
 
     setEditingSheep(null);
@@ -792,6 +843,63 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
             </div>
           </div>
 
+          {/* Pen-Average Wool Overview Strip */}
+          <div className="bg-[#FAF6EE] rounded-xl border border-[#DFCBB3] p-4 sm:p-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#EAE2D0]">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-[#1E3F2B]">
+                <Scissors className="w-4 h-4 text-[#9C6B3F]" />
+                <span>ข้อมูลขนแกะเฉลี่ยประจำ {currentPen.code}</span>
+              </div>
+              <span className="text-[11px] font-mono text-[#6E4826]">
+                บันทึกค่าน้ำหนักขนแล้ว {penWoolStats.recordedWeightCount}/{penWoolStats.totalSheep} ตัว
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="bg-[#FFFDF9] rounded-xl border border-[#EAE2D0] p-3">
+                <span className="text-[11px] text-[#7D7061] block">น้ำหนักขนเฉลี่ย (กก./ตัว)</span>
+                <strong className="text-[#4A321F] text-lg sm:text-xl font-semibold font-mono mt-0.5 block">
+                  {penWoolStats.avgWoolKg != null ? `${penWoolStats.avgWoolKg} กก.` : 'ยังไม่บันทึก'}
+                </strong>
+                <span className="text-[10px] text-[#8C7F6E] block mt-0.5">
+                  รวมทั้งคอก {penWoolStats.totalWoolKg} กก.
+                </span>
+              </div>
+
+              <div className="bg-[#FFFDF9] rounded-xl border border-[#EAE2D0] p-3">
+                <span className="text-[11px] text-[#7D7061] block">ขนาดไมครอนเฉลี่ย</span>
+                <strong className="text-[#1E3F2B] text-lg sm:text-xl font-semibold font-mono mt-0.5 block">
+                  {penWoolStats.avgMicron != null ? `${penWoolStats.avgMicron} µm` : 'ยังไม่วัด'}
+                </strong>
+                <span className="text-[10px] text-[#8C7F6E] truncate block mt-0.5">
+                  {penWoolStats.dominantGrade || 'เกรดขนเฉลี่ยในคอก'}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFDF9] rounded-xl border border-[#EAE2D0] p-3">
+                <span className="text-[11px] text-[#7D7061] block">ความยาวช่อขนเฉลี่ย</span>
+                <strong className="text-[#2E6B47] text-lg sm:text-xl font-semibold font-mono mt-0.5 block">
+                  {penWoolStats.avgStapleCm != null ? `${penWoolStats.avgStapleCm} ซม.` : 'ยังไม่วัด'}
+                </strong>
+                <span className="text-[10px] text-[#8C7F6E] block mt-0.5">
+                  {penWoolStats.avgStapleCm != null
+                    ? `~${Math.round(penWoolStats.avgStapleCm * 10)} มม. (${penWoolStats.recordedStapleCount} ตัว)`
+                    : 'วัดกลางลำตัว'}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFDF9] rounded-xl border border-[#EAE2D0] p-3">
+                <span className="text-[11px] text-[#7D7061] block">ความแข็งแรง & ลอนขน</span>
+                <strong className="text-[#9C6B3F] text-lg sm:text-xl font-semibold font-mono mt-0.5 block">
+                  {penWoolStats.strongPct != null ? `${penWoolStats.strongPct}% เหนียวดี` : 'ยังไม่ประเมิน'}
+                </strong>
+                <span className="text-[10px] text-[#8C7F6E] block mt-0.5">
+                  ลอนถี่ {penWoolStats.denseCrimpCount} ตัว · ไขขนนุ่ม {penWoolStats.softHandleCount} ตัว
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] flex items-start gap-3 text-xs sm:text-sm text-[#5C5346]">
             <Info className="w-4 h-4 text-[#9C6B3F] shrink-0 mt-1" />
             <div>
@@ -877,7 +985,7 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                         <span className="text-[#7D7061] shrink-0">เกรดขน</span>
                         <div className="min-w-0 flex-1 flex justify-end">
                           <ExpandableText
-                            text={sheep.woolGrade || 'ไฟน์วูลละเอียด'}
+                            text={sheep.woolGrade || 'ยังไม่ระบุเกรดขน'}
                             threshold={22}
                             alignRight
                             stopCardPropagation
@@ -944,15 +1052,34 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-[#EAE2D0] flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 text-[#5C5346]">
-                        <Scale className="w-3.5 h-3.5 text-[#8C7F6E]" />
-                        <span>น้ำหนัก</span>
-                        <strong className="text-[#24201B] font-mono font-semibold">{sheep.weightKg} กก.</strong>
+                    <div className="pt-3 border-t border-[#EAE2D0] grid grid-cols-3 gap-2 text-xs">
+                      <div className="text-[#5C5346]">
+                        <span className="text-[10px] text-[#7D7061] flex items-center gap-1">
+                          <Scale className="w-3 h-3 text-[#8C7F6E]" />
+                          <span>น้ำหนักตัว</span>
+                        </span>
+                        <strong className="text-[#24201B] font-mono font-semibold block mt-0.5">
+                          {sheep.weightKg} กก.
+                        </strong>
                       </div>
-                      <div>
-                        <span className="text-[#7D7061] mr-1">ADG</span>
-                        <strong className="text-[#1E3F2B] font-mono font-semibold">
+                      <div className="text-[#5C5346] border-x border-[#EAE2D0] px-2">
+                        <span className="text-[10px] text-[#7D7061] flex items-center gap-1">
+                          <Scissors className="w-3 h-3 text-[#9C6B3F]" />
+                          <span>น้ำหนักขน</span>
+                        </span>
+                        <strong className="text-[#9C6B3F] font-mono font-semibold block mt-0.5">
+                          {(() => {
+                            const hasSplit = sheep.gfwBodyKg != null || sheep.gfwSkirtingsKg != null;
+                            const woolKg = hasSplit
+                              ? Number(((sheep.gfwBodyKg ?? 0) + (sheep.gfwSkirtingsKg ?? 0)).toFixed(2))
+                              : sheep.fleeceYieldKg ?? null;
+                            return woolKg != null && woolKg > 0 ? `${woolKg} กก.` : 'ยังไม่บันทึก';
+                          })()}
+                        </strong>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-[#7D7061] block">ADG</span>
+                        <strong className="text-[#1E3F2B] font-mono font-semibold block mt-0.5">
                           +{sheep.currentAdgGrams || 170} ก./วัน
                         </strong>
                       </div>
@@ -1143,19 +1270,11 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
 
               {/* Section 2: พารามิเตอร์ขนแกะวัดเองหน้าคอก 4 ด้าน + คำแนะนำสูตรอาหาร */}
               {(() => {
-                const bodyKg =
-                  viewingDetailSheep.gfwBodyKg ??
-                  (viewingDetailSheep.fleeceYieldKg != null
-                    ? Number((viewingDetailSheep.fleeceYieldKg * 0.78).toFixed(1))
-                    : null);
-                const skirtKg =
-                  viewingDetailSheep.gfwSkirtingsKg ??
-                  (viewingDetailSheep.fleeceYieldKg != null && bodyKg != null
-                    ? Number(Math.max(0, viewingDetailSheep.fleeceYieldKg - bodyKg).toFixed(1))
-                    : null);
+                const bodyKg = viewingDetailSheep.gfwBodyKg ?? null;
+                const skirtKg = viewingDetailSheep.gfwSkirtingsKg ?? null;
                 const totalGfwKg =
                   bodyKg != null || skirtKg != null
-                    ? Number(((bodyKg ?? 0) + (skirtKg ?? 0)).toFixed(1))
+                    ? Number(((bodyKg ?? 0) + (skirtKg ?? 0)).toFixed(2))
                     : viewingDetailSheep.fleeceYieldKg ?? null;
                 const stapleCm = viewingDetailSheep.woolStapleLengthCm;
                 const woolAdj = analyzeWoolNutritionAdjustments(viewingDetailSheep);
@@ -1169,25 +1288,25 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                       <div className="flex items-center gap-2">
                         <Scissors className="w-4 h-4 text-[#9C6B3F]" />
                         <h4 className="text-sm font-semibold text-[#1E3F2B]">
-                          ผลประเมินขนแกะหน้าคอก (4 พารามิเตอร์)
+                          ข้อมูลขนแกะและผลประเมินหน้าคอก
                         </h4>
                       </div>
-                      {viewingDetailSheep.woolMicron && (
-                        <span className="text-[11px] font-medium text-[#6E6254]">
-                          เกรด {viewingDetailSheep.woolGrade || 'มาตรฐาน'} · {viewingDetailSheep.woolMicron} µm
-                        </span>
-                      )}
+                      <span className="text-[11px] font-medium text-[#6E6254]">
+                        {viewingDetailSheep.woolGrade || 'ยังไม่ระบุเกรดขน'}
+                        {viewingDetailSheep.woolMicron ? ` · ${viewingDetailSheep.woolMicron} µm` : ''}
+                        {viewingDetailSheep.lastShearingDate ? ` · ตัดล่าสุด ${viewingDetailSheep.lastShearingDate}` : ''}
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] text-xs">
                       <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
                         <span className="text-[11px] text-[#7D7061] block">① น้ำหนักขนดิบ (GFW)</span>
                         <strong className="text-[#1E3F2B] font-mono text-sm font-semibold block mt-0.5">
-                          {totalGfwKg != null ? `รวม ${totalGfwKg} กก.` : '-'}
+                          {totalGfwKg != null && totalGfwKg > 0 ? `รวม ${totalGfwKg} กก.` : 'ยังไม่บันทึก'}
                         </strong>
-                        {bodyKg != null && skirtKg != null && (
+                        {bodyKg != null && (
                           <span className="text-[11px] text-[#6E6254] block mt-0.5">
-                            ขนลำตัว {bodyKg} กก. · เศษชายท้อง/ขา {skirtKg} กก.
+                            ขนลำตัว {bodyKg} กก. · เศษชายท้อง/ขา {skirtKg ?? 0} กก.
                           </span>
                         )}
                       </div>
@@ -1195,9 +1314,9 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                       <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
                         <span className="text-[11px] text-[#7D7061] block">② ความยาวช่อขน (กลางลำตัว)</span>
                         <strong className="text-[#24201B] font-mono text-sm font-semibold block mt-0.5">
-                          {stapleCm != null
+                          {stapleCm != null && stapleCm > 0
                             ? `${stapleCm} ซม. (${Math.round(stapleCm * 10)} มม.)`
-                            : '-'}
+                            : 'ยังไม่บันทึก'}
                         </strong>
                         <span className="text-[11px] text-[#6E6254] block mt-0.5">
                           วัดตามธรรมชาติ ไม่ดึงยืด
@@ -1212,25 +1331,31 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                               ? 'text-[#A63D2E]'
                               : viewingDetailSheep.woolSoundness === 'weak_tip'
                               ? 'text-[#9C6B3F]'
-                              : 'text-[#2E6B47]'
+                              : viewingDetailSheep.woolSoundness
+                              ? 'text-[#2E6B47]'
+                              : 'text-[#6E6254]'
                           }`}
                         >
                           {getSoundnessLabel(viewingDetailSheep.woolSoundness)}
                         </strong>
                         <span className="text-[11px] text-[#6E6254] block mt-0.5">
-                          {SOUNDNESS_OPTIONS.find(
-                            o => o.value === (viewingDetailSheep.woolSoundness || 'strong')
-                          )?.hint}
+                          {viewingDetailSheep.woolSoundness
+                            ? SOUNDNESS_OPTIONS.find(o => o.value === viewingDetailSheep.woolSoundness)?.hint
+                            : 'ประเมินเมื่อตัดขนหรือแก้ไขภายหลังได้'}
                         </span>
                       </div>
 
                       <div className="bg-[#FFFDF9] p-3 rounded-lg border border-[#EAE2D0]">
                         <span className="text-[11px] text-[#7D7061] block">④ ความนุ่มและลอนขน (Crimp & Handle)</span>
                         <strong className="text-[#1E3F2B] text-sm font-semibold block mt-0.5">
-                          {getCrimpLabel(viewingDetailSheep.woolCrimpStyle)} · {getHandleLabel(viewingDetailSheep.woolHandle)}
+                          {viewingDetailSheep.woolCrimpStyle || viewingDetailSheep.woolHandle
+                            ? `${getCrimpLabel(viewingDetailSheep.woolCrimpStyle)} · ${getHandleLabel(viewingDetailSheep.woolHandle)}`
+                            : 'ยังไม่บันทึก'}
                         </strong>
                         <span className="text-[11px] text-[#6E6254] block mt-0.5">
-                          {HANDLE_OPTIONS.find(o => o.value === (viewingDetailSheep.woolHandle || 'normal'))?.hint}
+                          {viewingDetailSheep.woolHandle
+                            ? HANDLE_OPTIONS.find(o => o.value === viewingDetailSheep.woolHandle)?.hint
+                            : 'ประเมินจากลอนและไขขนหน้าคอก'}
                         </span>
                       </div>
                     </div>
@@ -1630,219 +1755,296 @@ export const SheepDirectory: React.FC<SheepDirectoryProps> = ({
                 </div>
               </div>
 
-              {/* Part 4: 5 Pen-Side Wool Evaluation Parameters */}
+              {/* Part 4: Optional Wool Evaluation Parameters */}
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#9C6B3F] block">
-                    หมวดที่ 4: พารามิเตอร์ขนแกะ (วัดเองหน้าคอกได้ ระบบจะนำไปช่วยคำนวณสูตรอาหารให้อัตโนมัติ)
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-[#FAF6EE] px-4 py-3 rounded-xl border border-[#DFCBB3]">
+                  <div>
+                    <span className="text-xs font-semibold text-[#9C6B3F] block">
+                      หมวดที่ 4: ข้อมูลขนแกะและน้ำหนักขน (ไม่บังคับกรอกตอนลงทะเบียน)
+                    </span>
+                    <span className="text-[11px] text-[#6E6254] block mt-0.5">
+                      สามารถข้ามหมวดนี้แล้วมาแก้ไขภายหลัง หรือบันทึกในหน้า "5. บันทึกกิจกรรม" เพื่อให้ระบบซิงค์อัปเดตให้อัตโนมัติได้
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalWoolFields(prev => !prev)}
+                    className="px-3 py-1.5 rounded-lg border border-[#DFCBB3] bg-[#FFFDF9] hover:bg-[#EFE6D5] text-[#1E3F2B] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {showOptionalWoolFields ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5" />
+                        <span>ซ่อนข้อมูลขนแกะ</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        <span>กรอกข้อมูลขนแกะ (ไม่บังคับ)</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                <div className="bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] space-y-4 text-xs">
-                  {/* 1. Greasy Fleece Weight (GFW) + 2. Staple Length */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#1E3F2B]">
-                          1. น้ำหนักขนดิบหลังตัด (GFW)
-                        </span>
-                        <span className="font-mono font-semibold text-[#9C6B3F]">
-                          รวม {(Number(formGfwBodyKg || 0) + Number(formGfwSkirtingsKg || 0)).toFixed(1)} กก.
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#6E6254]">
-                        ชั่งทันทีหลังตัด แยกส่วนขนลำตัวออกจากเศษขนชายท้องและขา
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 pt-1">
+                {showOptionalWoolFields && (
+                  <div className="bg-[#FAF6EE] p-4 rounded-xl border border-[#EAE2D0] space-y-4 text-xs">
+                    {/* 1. Greasy Fleece Weight (GFW) + 2. Staple Length */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[#1E3F2B]">
+                            1. น้ำหนักขนดิบหลังตัด (กิโลกรัม)
+                          </span>
+                          <span className="font-mono font-semibold text-[#9C6B3F]">
+                            {formFleeceYieldKg ? `${formFleeceYieldKg} กก.` : 'ยังไม่กรอก'}
+                          </span>
+                        </div>
+
                         <div>
-                          <label className="block text-[11px] text-[#5C5346] mb-1">
-                            ขนลำตัว (กก.)
+                          <label className="block text-[11px] text-[#5C5346] font-medium mb-1">
+                            น้ำหนักขนรวม (กก.) — กรอกช่องเดียวได้ทันที
                           </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            value={formGfwBodyKg}
-                            onChange={e => setFormGfwBodyKg(parseFloat(e.target.value) || 0)}
+                            placeholder="เช่น 5.2 (เว้นว่างได้)"
+                            value={formFleeceYieldKg}
+                            onChange={e => {
+                              setFormFleeceYieldKg(e.target.value);
+                            }}
                             className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
                           />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#EAE2D0]">
+                          <div>
+                            <label className="block text-[11px] text-[#6E6254] mb-1">
+                              แยก: ขนลำตัว (กก.)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="ไม่บังคับ"
+                              value={formGfwBodyKg}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setFormGfwBodyKg(val);
+                                const b = parseFloat(val) || 0;
+                                const s = parseFloat(formGfwSkirtingsKg) || 0;
+                                setFormFleeceYieldKg(b + s > 0 ? String(Number((b + s).toFixed(2))) : '');
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-[#6E6254] mb-1">
+                              แยก: ชายท้อง/ขา (กก.)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="ไม่บังคับ"
+                              value={formGfwSkirtingsKg}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setFormGfwSkirtingsKg(val);
+                                const b = parseFloat(formGfwBodyKg) || 0;
+                                const s = parseFloat(val) || 0;
+                                setFormFleeceYieldKg(b + s > 0 ? String(Number((b + s).toFixed(2))) : '');
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#24201B] font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2 flex flex-col justify-between">
                         <div>
-                          <label className="block text-[11px] text-[#5C5346] mb-1">
-                            ชายท้อง/ขา (กก.)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={formGfwSkirtingsKg}
-                            onChange={e => setFormGfwSkirtingsKg(parseFloat(e.target.value) || 0)}
-                            className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#24201B] font-mono"
-                          />
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-[#1E3F2B]">
+                              2. ความยาวช่อขน (Staple Length)
+                            </span>
+                            <span className="font-mono font-semibold text-[#2E6B47]">
+                              {formWoolStapleLengthCm
+                                ? `${Math.round((parseFloat(formWoolStapleLengthCm) || 0) * 10)} มม.`
+                                : '-'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#6E6254] mt-1">
+                            ใช้ไม้บรรทัดวัดกลางลำตัวตามธรรมชาติ (ห้ามดึงให้ยืด)
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[11px] text-[#5C5346] mb-1">
+                              ความยาวที่วัดได้ (ซม.)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              placeholder="เช่น 9.5 (เว้นว่างได้)"
+                              value={formWoolStapleLengthCm}
+                              onChange={e => setFormWoolStapleLengthCm(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-[#5C5346] mb-1">
+                              วันที่ตัดขนล่าสุด
+                            </label>
+                            <input
+                              type="date"
+                              value={formLastShearingDate}
+                              onChange={e => setFormLastShearingDate(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg font-mono text-[#5C5346]"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-[#1E3F2B]">
-                            2. ความยาวช่อขน (Staple Length)
-                          </span>
-                          <span className="font-mono font-semibold text-[#2E6B47]">
-                            {Math.round((Number(formWoolStapleLengthCm) || 0) * 10)} มม.
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#6E6254] mt-1">
-                          ใช้ไม้บรรทัดวัดกลางลำตัวตามธรรมชาติ (ห้ามดึงให้ยืด)
-                        </p>
+                    {/* 3. Soundness / Hand-break test */}
+                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="font-semibold text-[#1E3F2B]">
+                          3. ความแข็งแรงเบื้องต้น (จับช่อขนเท่าดินสอแล้วดีดเบาๆ)
+                        </span>
+                        <span className="text-[11px] text-[#6E6254]">
+                          แตะเพื่อเลือก หรือแตะซ้ำเพื่อล้างค่า
+                        </span>
                       </div>
-                      <div>
-                        <label className="block text-[11px] text-[#5C5346] mb-1">
-                          ความยาวที่วัดได้ (ซม.)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          value={formWoolStapleLengthCm}
-                          onChange={e => setFormWoolStapleLengthCm(parseFloat(e.target.value) || 0)}
-                          className="w-full px-2.5 py-1.5 bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. Soundness / Hand-break test */}
-                  <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-2">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-semibold text-[#1E3F2B]">
-                        3. ความแข็งแรงเบื้องต้น (จับช่อขนเท่าดินสอแล้วดีดเบาๆ)
-                      </span>
-                      <span className="text-[11px] text-[#6E6254]">
-                        ขาดง่าย = ต้องการโปรตีน/พลังงานเพิ่ม
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {SOUNDNESS_OPTIONS.map(opt => {
-                        const active = formWoolSoundness === opt.value;
-                        const isWeak = opt.value === 'weak_base' || opt.value === 'weak_mid';
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => setFormWoolSoundness(opt.value)}
-                            className={`p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
-                              active
-                                ? isWeak
-                                  ? 'bg-[#FBEEEC] border-[#A63D2E] text-[#A63D2E]'
-                                  : 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
-                                : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
-                            }`}
-                          >
-                            <span className="font-semibold block">{opt.label}</span>
-                            <span
-                              className={`text-[10px] block mt-0.5 ${
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {SOUNDNESS_OPTIONS.map(opt => {
+                          const active = formWoolSoundness === opt.value;
+                          const isWeak = opt.value === 'weak_base' || opt.value === 'weak_mid';
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() =>
+                                setFormWoolSoundness(prev => (prev === opt.value ? '' : opt.value))
+                              }
+                              className={`p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
                                 active
                                   ? isWeak
-                                    ? 'text-[#8C372B]'
-                                    : 'text-[#D5E0D7]'
-                                  : 'text-[#7D7061]'
-                              }`}
-                            >
-                              {opt.hint}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* 4. Crimp & Handle */}
-                  <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-3">
-                    <span className="font-semibold text-[#1E3F2B] block">
-                      4. ความนุ่มและลอนขน (Crimp & Handle)
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] text-[#5C5346] font-medium block">
-                          ความถี่ของลอนคลื่นบนช่อขน
-                        </span>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {CRIMP_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setFormWoolCrimpStyle(opt.value)}
-                              className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
-                                formWoolCrimpStyle === opt.value
-                                  ? 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
-                                  : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
-                              }`}
-                            >
-                              <span className="font-semibold text-[11px] block leading-tight">
-                                {opt.label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] text-[#5C5346] font-medium block">
-                          สัมผัสความนุ่มลื่นของไขขน
-                        </span>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {HANDLE_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setFormWoolHandle(opt.value)}
-                              className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
-                                formWoolHandle === opt.value
-                                  ? opt.value === 'dry_harsh'
-                                    ? 'bg-[#F9F2E4] border-[#9C6B3F] text-[#6E4826]'
+                                    ? 'bg-[#FBEEEC] border-[#A63D2E] text-[#A63D2E]'
                                     : 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
                                   : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
                               }`}
                             >
-                              <span className="font-semibold text-[11px] block leading-tight">
-                                {opt.label}
+                              <span className="font-semibold block">{opt.label}</span>
+                              <span
+                                className={`text-[10px] block mt-0.5 ${
+                                  active
+                                    ? isWeak
+                                      ? 'text-[#8C372B]'
+                                      : 'text-[#D5E0D7]'
+                                    : 'text-[#7D7061]'
+                                }`}
+                              >
+                                {opt.hint}
                               </span>
                             </button>
-                          ))}
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 4. Crimp & Handle */}
+                    <div className="bg-[#FFFDF9] p-3.5 rounded-xl border border-[#EAE2D0] space-y-3">
+                      <span className="font-semibold text-[#1E3F2B] block">
+                        4. ความนุ่มและลอนขน (Crimp & Handle)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] text-[#5C5346] font-medium block">
+                            ความถี่ของลอนคลื่นบนช่อขน
+                          </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {CRIMP_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() =>
+                                  setFormWoolCrimpStyle(prev => (prev === opt.value ? '' : opt.value))
+                                }
+                                className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
+                                  formWoolCrimpStyle === opt.value
+                                    ? 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                                    : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                                }`}
+                              >
+                                <span className="font-semibold text-[11px] block leading-tight">
+                                  {opt.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] text-[#5C5346] font-medium block">
+                            สัมผัสความนุ่มลื่นของไขขน
+                          </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {HANDLE_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() =>
+                                  setFormWoolHandle(prev => (prev === opt.value ? '' : opt.value))
+                                }
+                                className={`p-2 rounded-lg border text-center transition-colors cursor-pointer ${
+                                  formWoolHandle === opt.value
+                                    ? opt.value === 'dry_harsh'
+                                      ? 'bg-[#F9F2E4] border-[#9C6B3F] text-[#6E4826]'
+                                      : 'bg-[#1E3F2B] border-[#1E3F2B] text-[#FAF6EE]'
+                                    : 'bg-[#FAF6EE] border-[#DFCBB3] text-[#5C5346] hover:border-[#9C6B3F]'
+                                }`}
+                              >
+                                <span className="font-semibold text-[11px] block leading-tight">
+                                  {opt.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Optional classing/micron info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
-                        เกรดขน (ถ้าทราบ)
-                      </label>
-                      <input
-                        type="text"
-                        value={formWoolGrade}
-                        onChange={e => setFormWoolGrade(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#24201B]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
-                        ขนาดไมครอน µm (ถ้ามีเครื่องวัด)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={formWoolMicron}
-                        onChange={e => setFormWoolMicron(parseFloat(e.target.value) || 0)}
-                        className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
-                      />
+                    {/* Optional classing/micron info */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
+                          เกรดขน (ถ้าทราบ)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น ซูเปอร์ไฟน์ (< 18.5 µm)"
+                          value={formWoolGrade}
+                          onChange={e => setFormWoolGrade(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#24201B]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-[#5C5346] font-semibold mb-1">
+                          ขนาดไมครอน µm (ถ้ามีเครื่องวัด)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="เช่น 18.5 (เว้นว่างได้)"
+                          value={formWoolMicron}
+                          onChange={e => setFormWoolMicron(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-[#FFFDF9] border border-[#DFCBB3] rounded-lg text-[#1E3F2B] font-mono font-semibold"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Part 5: Weight & ADG */}

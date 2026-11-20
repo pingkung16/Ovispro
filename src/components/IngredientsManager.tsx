@@ -25,6 +25,7 @@ import {
 import { FeedIngredient, IngredientCategory } from '../types/sheep';
 import {
   resolveIngredientFromName,
+  validateSheepFeedIngredient,
   QUICK_INGREDIENT_SUGGESTIONS,
 } from '../data/feedCompositionLookup';
 
@@ -119,6 +120,11 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<number>(0);
 
+  const feedValidation = useMemo(() => {
+    if (!formNameTh.trim()) return null;
+    return validateSheepFeedIngredient(formNameTh);
+  }, [formNameTh]);
+
   const autoResolvedPreview = useMemo(() => {
     if (!formNameTh.trim()) return null;
     return resolveIngredientFromName(formNameTh);
@@ -170,16 +176,18 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
     setFormNameTh(name);
     if (name.trim()) {
       const resolved = resolveIngredientFromName(name);
-      setFormNameEn(resolved.nameEn);
-      setFormCategory(resolved.category);
-      setFormDryMatter(resolved.dryMatter);
-      setFormCrudeProtein(resolved.crudeProtein);
-      setFormTdn(resolved.tdn);
-      setFormCalcium(resolved.calcium);
-      setFormPhosphorus(resolved.phosphorus);
-      setFormPrice(resolved.pricePerKg);
-      setFormIsRoughage(resolved.isRoughage);
-      setFormDescription(resolved.description || '');
+      if (resolved.isValidForSheep) {
+        setFormNameEn(resolved.nameEn);
+        setFormCategory(resolved.category);
+        setFormDryMatter(resolved.dryMatter);
+        setFormCrudeProtein(resolved.crudeProtein);
+        setFormTdn(resolved.tdn);
+        setFormCalcium(resolved.calcium);
+        setFormPhosphorus(resolved.phosphorus);
+        setFormPrice(resolved.pricePerKg);
+        setFormIsRoughage(resolved.isRoughage);
+        setFormDescription(resolved.description || '');
+      }
     }
   };
 
@@ -207,7 +215,11 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
     e.preventDefault();
     if (!formNameTh.trim()) return;
 
+    const validation = validateSheepFeedIngredient(formNameTh);
+    if (!validation.isValid) return;
+
     const resolved = resolveIngredientFromName(formNameTh);
+    if (!resolved.isValidForSheep) return;
     const useOverride = showManualOverrideInAdd;
 
     onAddIngredient({
@@ -230,6 +242,9 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingIng || !formNameTh.trim()) return;
+
+    const validation = validateSheepFeedIngredient(formNameTh);
+    if (!validation.isValid) return;
 
     onUpdateIngredient({
       ...editingIng,
@@ -745,8 +760,24 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
                     </div>
                   </div>
 
+                  {/* Rejected non-sheep feed alert */}
+                  {feedValidation && !feedValidation.isValid && (
+                    <div
+                      role="alert"
+                      className="bg-[#FCEFED] rounded-2xl border border-[#E8C5C0] p-4 flex items-start gap-3 text-[#8A3B2D]"
+                    >
+                      <ShieldAlert className="w-5 h-5 text-[#A63D2E] shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs leading-relaxed">
+                        <strong className="font-semibold block text-[#8A3B2D]">
+                          ไม่สามารถเพิ่มวัตถุดิบนี้ได้ (ไม่ผ่านการคัดกรองอาหารแกะ)
+                        </strong>
+                        <p>{feedValidation.reasonTh}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Auto-Calculated % Proportions Live Preview */}
-                  {autoResolvedPreview && (
+                  {autoResolvedPreview && autoResolvedPreview.isValidForSheep && (
                     <div className="bg-[#FAF6EE] rounded-2xl border border-[#DFCBB3] p-4 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -825,7 +856,7 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
                 </div>
               ) : null}
 
-              {(editingIng || showManualOverrideInAdd) && (
+              {(editingIng || (showManualOverrideInAdd && (!feedValidation || feedValidation.isValid))) && (
               <>
               <div className="grid grid-cols-2 gap-3.5">
                 {editingIng && (
@@ -1011,6 +1042,16 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
               </>
               )}
 
+              {editingIng && feedValidation && !feedValidation.isValid && (
+                <div
+                  role="alert"
+                  className="bg-[#FCEFED] rounded-2xl border border-[#E8C5C0] p-3.5 flex items-start gap-2.5 text-[#8A3B2D] text-xs"
+                >
+                  <ShieldAlert className="w-4 h-4 text-[#A63D2E] shrink-0 mt-0.5" />
+                  <span>{feedValidation.reasonTh}</span>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-3 border-t border-[#EAE2D0]">
                 <button
                   type="button"
@@ -1021,7 +1062,8 @@ export const IngredientsManager: React.FC<IngredientsManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs bg-[#1E3F2B] hover:bg-[#29533A] text-[#FAF6EE] rounded-xl font-semibold transition-colors cursor-pointer"
+                  disabled={Boolean(feedValidation && !feedValidation.isValid)}
+                  className="px-5 py-2 text-xs bg-[#1E3F2B] hover:bg-[#29533A] disabled:opacity-45 disabled:cursor-not-allowed text-[#FAF6EE] rounded-xl font-semibold transition-colors cursor-pointer"
                 >
                   {editingIng ? 'บันทึกการแก้ไข' : 'คำนวณ % และบันทึกวัตถุดิบ'}
                 </button>

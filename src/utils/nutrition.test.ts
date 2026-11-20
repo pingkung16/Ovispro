@@ -533,6 +533,405 @@ test('Thailand provinces and districts lookup covers all 77 provinces and format
   assert.equal(formatThaiFarmLocation(''), '');
 });
 
+import {
+  validateSheepFeedIngredient,
+  resolveIngredientFromName,
+} from '../data/feedCompositionLookup';
+import {
+  filterSheepForActivity,
+  resolvePenForActivity,
+} from './activityHelpers';
 
+test('validateSheepFeedIngredient rejects human junk food, beverages, meat, toxic items, and gibberish', () => {
+  const blockedInputs = [
+    'โดนัท',
+    'พิซซ่า',
+    'pizza',
+    'เบอร์เกอร์',
+    'ช็อกโกแลต',
+    'เค้กมะพร้าว',
+    'ข้าวโพดคั่ว',
+    'ขนมปังโฮลวีต',
+    'กาแฟเย็น',
+    'ชาไข่มุก',
+    'น้ำอัดลม',
+    'เบียร์',
+    'เนื้อหมู',
+    'ไก่ทอด',
+    'อาหารหมู',
+    'อาหารวัว',
+    'อาหารสุนัข',
+    'หัวหอม',
+    'กระเทียม',
+    'อะโวคาโด',
+    'คีย์บอร์ด',
+    'asdfgh',
+    '123456',
+  ];
 
+  for (const item of blockedInputs) {
+    const res = validateSheepFeedIngredient(item);
+    assert.equal(res.isValid, false, `Expected "${item}" to be rejected`);
+    assert.ok(res.reasonTh && res.reasonTh.length > 0, `Expected Thai rejection reason for "${item}"`);
+
+    const resolved = resolveIngredientFromName(item);
+    assert.equal(resolved.isValidForSheep, false, `resolveIngredientFromName should flag "${item}" invalid`);
+  }
+});
+
+test('validateSheepFeedIngredient accepts genuine sheep forage, concentrates, byproducts, and safe minerals', () => {
+  const validInputs = [
+    'หญ้ารูซี่สด',
+    'หญ้าหวานอิสราเอล',
+    'ข้าวโพดหมัก',
+    'กากเบียร์เปียกสด',
+    'กากเบียร์แห้ง',
+    'ใบหม่อนสด',
+    'ถั่วคาวาลเคด',
+    'ฟางข้าว',
+    'กากมะพร้าว',
+    'เปลือกหอยป่น',
+    'เกลือแกงเสริมไอโอดีน',
+    'Alfalfa Hay',
+  ];
+
+  for (const item of validInputs) {
+    const res = validateSheepFeedIngredient(item);
+    assert.equal(res.isValid, true, `Expected "${item}" to be allowed (got ${res.reasonTh})`);
+
+    const resolved = resolveIngredientFromName(item);
+    assert.equal(resolved.isValidForSheep, true);
+    assert.ok(resolved.dryMatter > 0, `Expected DM > 0 for "${item}"`);
+  }
+});
+
+test('filterSheepForActivity narrows sheep by pen, name/earTag search, and female-only mode', () => {
+  const sheepSample: Sheep[] = [
+    {
+      id: 's1',
+      earTag: 'OV-001',
+      name: 'ทองคำ',
+      breed: 'เมอริโน (Merino)',
+      gender: 'male',
+      birthDate: '2024-01-01',
+      ageMonths: 24,
+      weightKg: 72,
+      currentAdgGrams: 180,
+      stage: 'wool_maintenance',
+      bcs: 3.5,
+      penId: 'pen-a',
+      pen: 'คอก A',
+      healthStatus: 'healthy',
+    },
+    {
+      id: 's2',
+      earTag: 'OV-002',
+      name: 'ไข่มุก',
+      breed: 'เมอริโน (Merino)',
+      gender: 'female',
+      birthDate: '2024-03-01',
+      ageMonths: 20,
+      weightKg: 58,
+      currentAdgGrams: 160,
+      stage: 'wool_gestation',
+      bcs: 3.5,
+      penId: 'pen-b',
+      pen: 'คอก B',
+      healthStatus: 'healthy',
+    },
+    {
+      id: 's3',
+      earTag: 'OV-003',
+      name: 'สายไหม',
+      breed: 'ดอร์เซท (Dorset)',
+      gender: 'female',
+      birthDate: '2024-05-01',
+      ageMonths: 18,
+      weightKg: 54,
+      currentAdgGrams: 170,
+      stage: 'wool_growing',
+      bcs: 3.0,
+      penId: 'pen-b',
+      pen: 'คอก B',
+      healthStatus: 'healthy',
+    },
+  ];
+
+  const penB = filterSheepForActivity(sheepSample, {
+    penId: 'pen-b',
+    searchTerm: '',
+    pens: DEFAULT_PENS_TEMPLATE,
+  });
+  assert.deepEqual(penB.map(s => s.id), ['s2', 's3']);
+
+  const searchInPenB = filterSheepForActivity(sheepSample, {
+    penId: 'pen-b',
+    searchTerm: 'สายไหม',
+    pens: DEFAULT_PENS_TEMPLATE,
+  });
+  assert.deepEqual(searchInPenB.map(s => s.id), ['s3']);
+
+  const femalesAll = filterSheepForActivity(sheepSample, {
+    penId: 'all',
+    searchTerm: 'ov-002',
+    onlyFemales: true,
+    pens: DEFAULT_PENS_TEMPLATE,
+  });
+  assert.deepEqual(femalesAll.map(s => s.id), ['s2']);
+
+  const resolvedPen = resolvePenForActivity(DEFAULT_PENS_TEMPLATE, 'all', sheepSample[1]);
+  assert.equal(resolvedPen?.id, 'pen-b');
+});
+
+import { computePenWoolStats } from './nutrition';
+import { applyActivityLogToSheepList } from './activityHelpers';
+import type { FarmLog } from '../types/sheep';
+
+test('computePenWoolStats calculates accurate pen averages for wool weight, micron, staple, and soundness', () => {
+  const emptyStats = computePenWoolStats([]);
+  assert.equal(emptyStats.totalSheep, 0);
+  assert.equal(emptyStats.avgWoolKg, null);
+  assert.equal(emptyStats.avgMicron, null);
+  assert.equal(emptyStats.avgStapleCm, null);
+  assert.equal(emptyStats.strongPct, null);
+
+  const mixedPen: Sheep[] = [
+    {
+      id: 'w1',
+      earTag: 'OV-101',
+      name: 'หนึ่ง',
+      breed: 'เมอริโน (Merino)',
+      gender: 'female',
+      birthDate: '2024-01-01',
+      ageMonths: 24,
+      weightKg: 60,
+      currentAdgGrams: 180,
+      stage: 'wool_maintenance',
+      bcs: 3.5,
+      penId: 'pen-a',
+      pen: 'คอก A',
+      healthStatus: 'healthy',
+      gfwBodyKg: 4.0,
+      gfwSkirtingsKg: 1.0, // total 5.0
+      woolMicron: 18.0,
+      woolStapleLengthCm: 10.0,
+      woolSoundness: 'strong',
+      woolCrimpStyle: 'dense',
+      woolHandle: 'soft_greasy',
+      woolGrade: 'ซูเปอร์ไฟน์',
+    },
+    {
+      id: 'w2',
+      earTag: 'OV-102',
+      name: 'สอง',
+      breed: 'เมอริโน (Merino)',
+      gender: 'female',
+      birthDate: '2024-01-01',
+      ageMonths: 24,
+      weightKg: 62,
+      currentAdgGrams: 175,
+      stage: 'wool_maintenance',
+      bcs: 3.5,
+      penId: 'pen-a',
+      pen: 'คอก A',
+      healthStatus: 'healthy',
+      fleeceYieldKg: 6.0,
+      woolMicron: 20.0,
+      woolStapleLengthCm: 8.0,
+      woolSoundness: 'weak_mid',
+      woolGrade: 'ซูเปอร์ไฟน์',
+    },
+    {
+      // New sheep registered without optional wool data yet
+      id: 'w3',
+      earTag: 'OV-103',
+      name: 'สาม (ยังไม่บันทึกขน)',
+      breed: 'ดอร์เซท (Dorset)',
+      gender: 'female',
+      birthDate: '2025-01-01',
+      ageMonths: 12,
+      weightKg: 42,
+      currentAdgGrams: 170,
+      stage: 'wool_growing',
+      bcs: 3.0,
+      penId: 'pen-a',
+      pen: 'คอก A',
+      healthStatus: 'healthy',
+    },
+  ];
+
+  const penStats = computePenWoolStats(mixedPen);
+  assert.equal(penStats.totalSheep, 3);
+  assert.equal(penStats.recordedWeightCount, 2);
+  assert.equal(penStats.totalWoolKg, 11.0);
+  assert.equal(penStats.avgWoolKg, 5.5); // (5.0 + 6.0) / 2
+  assert.equal(penStats.avgMicron, 19.0); // (18 + 20) / 2
+  assert.equal(penStats.avgStapleCm, 9.0); // (10 + 8) / 2
+  assert.equal(penStats.strongPct, 50); // 1 strong / 2 assessed
+  assert.equal(penStats.denseCrimpCount, 1);
+  assert.equal(penStats.softHandleCount, 1);
+  assert.equal(penStats.dominantGrade, 'ซูเปอร์ไฟน์');
+});
+
+test('applyActivityLogToSheepList syncs weight (+ADG), shearing wool stats, feeding ration, health, breeding, and lambing', () => {
+  const initialSheep: Sheep[] = [
+    {
+      id: 's1',
+      earTag: 'OV-201',
+      name: 'ขาวผ่อง',
+      breed: 'เมอริโน (Merino)',
+      gender: 'female',
+      birthDate: '2024-01-01',
+      ageMonths: 20,
+      weightKg: 50,
+      currentAdgGrams: 150,
+      stage: 'wool_maintenance',
+      bcs: 3.0,
+      penId: 'pen-b',
+      pen: 'คอก B',
+      healthStatus: 'healthy',
+    },
+    {
+      id: 's2',
+      earTag: 'OV-202',
+      name: 'ปุยนุ่น',
+      breed: 'ดอร์เซท (Dorset)',
+      gender: 'female',
+      birthDate: '2024-02-01',
+      ageMonths: 19,
+      weightKg: 55,
+      currentAdgGrams: 160,
+      stage: 'wool_maintenance',
+      bcs: 3.5,
+      penId: 'pen-b',
+      pen: 'คอก B',
+      healthStatus: 'healthy',
+    },
+  ];
+
+  // 1. Weight sync + ADG calculation from prior weight log (20 days earlier: 50 -> 54 kg = +200 g/day)
+  const prevLogs: FarmLog[] = [
+    {
+      id: 'log-prev',
+      date: '2026-10-01',
+      type: 'weight',
+      sheepId: 's1',
+      sheepEarTag: 'OV-201',
+      title: 'ชั่งครั้งก่อน',
+      weightKg: 50,
+      recordedBy: 'Admin',
+    },
+  ];
+  let updated = applyActivityLogToSheepList(
+    initialSheep,
+    {
+      date: '2026-10-21',
+      type: 'weight',
+      sheepId: 's1',
+      sheepEarTag: 'OV-201',
+      title: 'ชั่งน้ำหนัก',
+      weightKg: 54,
+      recordedBy: 'Admin',
+    },
+    { previousLogs: prevLogs }
+  );
+  assert.equal(updated[0].weightKg, 54);
+  assert.equal(updated[0].currentAdgGrams, 200);
+
+  // 2. Shearing sync -> wool weight, body/skirtings, staple length, micron, soundness, crimp, lastShearingDate
+  updated = applyActivityLogToSheepList(updated, {
+    date: '2026-10-25',
+    type: 'shearing',
+    sheepId: 's1',
+    sheepEarTag: 'OV-201',
+    title: 'ตัดขน',
+    woolWeightKg: 5.6,
+    woolBodyKg: 4.4,
+    woolSkirtingsKg: 1.2,
+    woolStapleLengthCm: 10.5,
+    woolMicron: 18.2,
+    woolSoundness: 'strong',
+    woolCrimpStyle: 'dense',
+    woolHandle: 'soft_greasy',
+    recordedBy: 'Admin',
+  });
+  assert.equal(updated[0].fleeceYieldKg, 5.6);
+  assert.equal(updated[0].gfwBodyKg, 4.4);
+  assert.equal(updated[0].gfwSkirtingsKg, 1.2);
+  assert.equal(updated[0].woolStapleLengthCm, 10.5);
+  assert.equal(updated[0].woolMicron, 18.2);
+  assert.equal(updated[0].woolSoundness, 'strong');
+  assert.equal(updated[0].crimpPerInch, 14);
+  assert.equal(updated[0].lastShearingDate, '2026-10-25');
+
+  // 3. Feeding sync -> assigns rationId to every sheep in pen-b
+  updated = applyActivityLogToSheepList(
+    updated,
+    {
+      date: '2026-10-26',
+      type: 'feeding',
+      penId: 'pen-b',
+      penName: 'คอก B',
+      feedRationId: 'ration-wool-1',
+      feedRationName: 'สูตรโปรตีนสูง',
+      feedAmountKg: 6.5,
+      title: 'ให้อาหารคอก B',
+      recordedBy: 'Admin',
+    },
+    { assignedRationId: 'ration-wool-1' }
+  );
+  assert.equal(updated[0].assignedRationId, 'ration-wool-1');
+  assert.equal(updated[1].assignedRationId, 'ration-wool-1');
+
+  // 4. Health vaccine + deworm sync
+  updated = applyActivityLogToSheepList(updated, {
+    date: '2026-10-27',
+    type: 'health_vaccine',
+    sheepId: 's2',
+    sheepEarTag: 'OV-202',
+    healthSubType: 'both',
+    healthStatusAfter: 'monitoring',
+    vaccineOrMedicineName: 'FMD + Ivermectin',
+    treatmentDose: '2 ml',
+    title: 'ฉีดวัคซีน',
+    recordedBy: 'Vet',
+  });
+  assert.equal(updated[1].vaccineLastDate, '2026-10-27');
+  assert.equal(updated[1].dewormLastDate, '2026-10-27');
+  assert.equal(updated[1].healthStatus, 'monitoring');
+
+  // 5. Breeding sync -> marks dam pregnant & wool_gestation
+  updated = applyActivityLogToSheepList(
+    updated,
+    {
+      date: '2026-11-01',
+      type: 'breeding',
+      sheepId: 's1',
+      sheepEarTag: 'OV-201',
+      matingDate: '2026-11-01',
+      sireBreedAndTag: 'SH-001 ทองเมฆ',
+      title: 'ผสมพันธุ์',
+      recordedBy: 'Admin',
+    },
+    { markPregnantOnBreeding: true }
+  );
+  assert.equal(updated[0].healthStatus, 'pregnant');
+  assert.equal(updated[0].stage, 'wool_gestation');
+
+  // 6. Lambing sync -> marks dam wool_lactation & healthy
+  updated = applyActivityLogToSheepList(updated, {
+    date: '2027-04-01',
+    type: 'lambing',
+    sheepId: 's1',
+    damEarTag: 'OV-201 ขาวผ่อง',
+    lambCount: 2,
+    lambGenders: 'ผู้ 1 เมีย 1',
+    lambSurvivalRate: '100%',
+    title: 'คลอด',
+    recordedBy: 'Admin',
+  });
+  assert.equal(updated[0].stage, 'wool_lactation');
+  assert.equal(updated[0].healthStatus, 'healthy');
+  assert.ok(updated[0].lambingRatePct?.includes('2 ตัว'));
+});
 

@@ -8,6 +8,21 @@ import { FeedIngredient, IngredientCategory } from '../types/sheep';
 export interface ResolvedIngredientData extends Omit<FeedIngredient, 'id'> {
   sourceLabel: string;
   matchedFromDatabase: boolean;
+  isValidForSheep: boolean;
+  rejectionReason?: string;
+}
+
+export interface FeedValidationResult {
+  isValid: boolean;
+  reasonTh?: string;
+  blockedCategory?:
+    | 'empty_or_invalid'
+    | 'human_junk_food'
+    | 'beverages'
+    | 'meat_animal'
+    | 'other_animal_feed'
+    | 'toxic_to_sheep'
+    | 'unrecognized';
 }
 
 interface FeedCatalogEntry {
@@ -640,12 +655,471 @@ const THAI_FEED_COMPOSITION_DB: FeedCatalogEntry[] = [
   },
 ];
 
+const HUMAN_JUNK_AND_COOKED_FOOD_KEYWORDS = [
+  'โดนัท',
+  'donut',
+  'doughnut',
+  'พิซซ่า',
+  'pizza',
+  'เบอร์เกอร์',
+  'แฮมเบอร์เกอร์',
+  'burger',
+  'เฟรนช์ฟราย',
+  'french fries',
+  'เค้ก',
+  'คัพเค้ก',
+  'cake',
+  'คุกกี้',
+  'cookie',
+  'บราวนี่',
+  'brownie',
+  'ช็อกโกแลต',
+  'chocolate',
+  'ไอศกรีม',
+  'ไอติม',
+  'ice cream',
+  'ขนมปัง',
+  'bread',
+  'ครัวซอง',
+  'croissant',
+  'แซนด์วิช',
+  'sandwich',
+  'พาย',
+  'วาฟเฟิล',
+  'waffle',
+  'แพนเค้ก',
+  'pancake',
+  'ขนม',
+  'snack',
+  'ลูกอม',
+  'candy',
+  'เยลลี่',
+  'หมากฝรั่ง',
+  'ป๊อปคอร์น',
+  'ข้าวโพดคั่ว',
+  'popcorn',
+  'มันฝรั่งทอด',
+  'เลย์',
+  'บะหมี่',
+  'มาม่า',
+  'ก๋วยเตี๋ยว',
+  'สปาเก็ตตี้',
+  'พาสต้า',
+  'pasta',
+  'ข้าวผัด',
+  'ข้าวมันไก่',
+  'ข้าวหมูแดง',
+  'ข้าวเหนียวมะม่วง',
+  'ซูชิ',
+  'sushi',
+  'ราเมน',
+  'ramen',
+  'ส้มตำ',
+  'ชาบู',
+  'หมูกระทะ',
+  'หมูปิ้ง',
+  'ไก่ทอด',
+  'ลูกชิ้น',
+  'ไส้กรอก',
+  'ฮอทดอก',
+  'hotdog',
+  'แฮม',
+  'เบคอน',
+  'bacon',
+  'ชีส',
+  'cheese',
+  'เนย',
+  'butter',
+  'มายองเนส',
+  'ซอสมะเขือเทศ',
+  'ซีอิ๊ว',
+  'น้ำปลา',
+  'กะปิ',
+  'ปลาร้า',
+  'น้ำพริก',
+  'ต้มยำ',
+  'ผัดไทย',
+  'ก๋วยจั๊บ',
+  'โจ๊ก',
+  'น้ำตาลทราย',
+  'นมข้น',
+  'วิปครีม',
+];
+
+const BEVERAGE_AND_ALCOHOL_KEYWORDS = [
+  'กาแฟ',
+  'coffee',
+  'เอสเปรสโซ',
+  'ลาเต้',
+  'คาปูชิโน',
+  'ชาเขียว',
+  'ชาไทย',
+  'ชาเย็น',
+  'ชานม',
+  'ชาไข่มุก',
+  'bubble tea',
+  'โกโก้',
+  'cocoa',
+  'น้ำอัดลม',
+  'โค้ก',
+  'coke',
+  'เป๊ปซี่',
+  'pepsi',
+  'สไปรท์',
+  'แฟนต้า',
+  'โซดา',
+  'soda',
+  'ชูกำลัง',
+  'กระทิงแดง',
+  'เอ็มร้อย',
+  'm-150',
+  'เหล้า',
+  'สุรา',
+  'ไวน์',
+  'wine',
+  'วิสกี้',
+  'whisky',
+  'วอดก้า',
+  'แอลกอฮอล์',
+  'alcohol',
+  'น้ำผลไม้',
+  'น้ำหวาน',
+  'สมูทตี้',
+  'smoothie',
+];
+
+const MEAT_AND_SEAFOOD_KEYWORDS = [
+  'เนื้อหมู',
+  'เนื้อวัว',
+  'เนื้อไก่',
+  'เนื้อเป็ด',
+  'เนื้อแกะ',
+  'หมูกรอบ',
+  'หมูสับ',
+  'หมูสามชั้น',
+  'คอหมู',
+  'ไก่ย่าง',
+  'ไก่ต้ม',
+  'เป็ดย่าง',
+  'กุ้ง',
+  'ปูอัด',
+  'ปลาหมึก',
+  'หอยแครง',
+  'หอยนางรม',
+  'หอยแมลงภู่',
+  'ปลาทู',
+  'ปลาดุก',
+  'ปลาแซลมอน',
+  'ซาซิมิ',
+  'ไข่เจียว',
+  'ไข่ดาว',
+  'ไข่ต้ม',
+  'ไข่ลวก',
+  'meat',
+  'pork',
+  'beef',
+  'chicken',
+  'seafood',
+  'shrimp',
+  'sausage',
+];
+
+const OTHER_ANIMAL_FEED_KEYWORDS = [
+  'อาหารสุกร',
+  'อาหารหมู',
+  'อาหารวัว',
+  'อาหารโค',
+  'อาหารไก่',
+  'อาหารเป็ด',
+  'อาหารปลา',
+  'อาหารกุ้ง',
+  'อาหารหมา',
+  'อาหารสุนัข',
+  'อาหารแมว',
+  'อาหารนก',
+  'อาหารกระต่าย',
+  'pig feed',
+  'swine feed',
+  'cattle feed',
+  'poultry feed',
+  'dog food',
+  'cat food',
+];
+
+const TOXIC_OR_NON_FEED_KEYWORDS = [
+  'หอมหัวใหญ่',
+  'หัวหอม',
+  'ต้นหอม',
+  'หอมแดง',
+  'กระเทียม',
+  'onion',
+  'garlic',
+  'อะโวคาโด',
+  'avocado',
+  'องุ่น',
+  'ลูกเกด',
+  'แมคคาเดเมีย',
+  'มันฝรั่งดิบ',
+  'เปลือกมันฝรั่ง',
+  'ต้นมันฝรั่ง',
+  'พริก',
+  'chili',
+  'ยาฆ่าแมลง',
+  'ปุ๋ยเคมี',
+  'สารเคมี',
+  'พลาสติก',
+  'โฟม',
+  'เชื้อรา',
+  'ขึ้นรา',
+  'ของบูด',
+  'ใบเสร็จ',
+  'ใบขับขี่',
+  'ใบสั่ง',
+  'ใบปลิว',
+  'ต้นทุน',
+  'รถยนต์',
+  'มอเตอร์ไซค์',
+  'โทรศัพท์',
+  'คีย์บอร์ด',
+  'รองเท้า',
+];
+
+const RECOGNIZED_RUMINANT_FEED_KEYWORDS = [
+  // หยาบ / หญ้า / พืชอาหารสัตว์
+  'หญ้า',
+  'ฟาง',
+  'ไซเลจ',
+  'หมัก',
+  'ใบ',
+  'เถา',
+  'ยอด',
+  'ต้น',
+  'แฝก',
+  'อัลฟัลฟา',
+  'โคลเวอร์',
+  'สไตโล',
+  'คาวาลเคด',
+  'ฮามาต้า',
+  'กระถิน',
+  'โสน',
+  'ทองหลาง',
+  'ปอเทือง',
+  'แหนแดง',
+  'จอก',
+  'ผักตบ',
+  'ผักบุ้ง',
+  'grass',
+  'hay',
+  'straw',
+  'silage',
+  'forage',
+  'alfalfa',
+  'clover',
+  'stylo',
+  'leaf',
+  'leaves',
+  // ธัญพืช / โปรตีน / พลังงาน / ผลพลอยได้เกษตร
+  'ข้าวโพด',
+  'รำ',
+  'ปลายข้าว',
+  'แกลบ',
+  'ข้าวฟ่าง',
+  'ข้าวสาลี',
+  'ข้าวบาร์เลย์',
+  'ข้าวโอ๊ต',
+  'มันเส้น',
+  'มันสำปะหลัง',
+  'หัวมัน',
+  'เปลือกมัน',
+  'กาก',
+  'ชาน',
+  'เปลือก',
+  'ซัง',
+  'ถั่ว',
+  'งา',
+  'ทานตะวัน',
+  'ฝ้าย',
+  'ปาล์ม',
+  'ยีสต์',
+  'โมลาส',
+  'ผลพลอยได้',
+  'อาหารข้น',
+  'อาหารหยาบ',
+  'อาหารเม็ดแกะ',
+  'ทีเอ็มอาร์',
+  'tmr',
+  'corn',
+  'maize',
+  'sorghum',
+  'oats',
+  'barley',
+  'wheat',
+  'bran',
+  'rice',
+  'cassava',
+  'molasses',
+  'soy',
+  'soybean',
+  'peanut',
+  'copra',
+  'palm',
+  'cottonseed',
+  'sunflower',
+  'yeast',
+  'urea',
+  'hull',
+  'pulp',
+  'meal',
+  'brewer',
+  // วิตามิน / แร่ธาตุ
+  'พรีมิกซ์',
+  'วิตามิน',
+  'แร่ธาตุ',
+  'เกลือ',
+  'แคลเซียม',
+  'ฟอสฟอรัส',
+  'ฟอสเฟต',
+  'ไดแคลเซียม',
+  'หินปูน',
+  'เปลือกหอย',
+  'กำมะถัน',
+  'ซีลีเนียม',
+  'สังกะสี',
+  'ไบคาร์บอเนต',
+  'โพรไบโอติก',
+  'premix',
+  'vitamin',
+  'mineral',
+  'salt',
+  'calcium',
+  'dcp',
+  'limestone',
+  'sulfur',
+  'bicarbonate',
+  'probiotic',
+];
+
+/**
+ * คัดกรองชื่อวัตถุดิบอาหารสัตว์อย่างเข้มงวด ป้องกันการเพิ่มอาหารคน ขนม ฟาสต์ฟู้ด เนื้อสัตว์ หรือสิ่งที่เป็นพิษต่อแกะ
+ */
+export function validateSheepFeedIngredient(rawName: string): FeedValidationResult {
+  const cleaned = rawName.trim();
+  const lower = cleaned.toLowerCase();
+
+  if (!cleaned || cleaned.length < 2) {
+    return {
+      isValid: false,
+      blockedCategory: 'empty_or_invalid',
+      reasonTh: 'กรุณาระบุชื่อวัตถุดิบอาหารแกะอย่างน้อย 2 ตัวอักษร',
+    };
+  }
+
+  // ป้องกันการพิมพ์ตัวเลขล้วนหรืออักขระพิเศษล้วน
+  if (/^[\d\s.,+\-*/!?@#$%^&()_=[\]{}|\\:;"'<>~`]+$/.test(cleaned)) {
+    return {
+      isValid: false,
+      blockedCategory: 'empty_or_invalid',
+      reasonTh: 'ชื่อวัตถุดิบไม่ถูกต้อง กรุณาระบุเป็นชื่อพืชอาหารสัตว์ ธัญพืช หรือแร่ธาตุสำหรับแกะ',
+    };
+  }
+
+  // 1. ตรวจอาหารคน เบเกอรี่ ขนม และฟาสต์ฟู้ด (ตรวจก่อนคำอนุญาต เพื่อไม่ให้ "เค้กมะพร้าว" หรือ "โดนัทถั่ว" หลุดรอด)
+  if (HUMAN_JUNK_AND_COOKED_FOOD_KEYWORDS.some(kw => lower.includes(kw))) {
+    return {
+      isValid: false,
+      blockedCategory: 'human_junk_food',
+      reasonTh: `"${cleaned}" เป็นขนม เบเกอรี่ ฟาสต์ฟู้ด หรืออาหารคน ไม่ใช่วัตถุดิบสำหรับแกะ (เสี่ยงท้องอืดและกรดในกระเพาะรูเมน)`,
+    };
+  }
+
+  // 2. ตรวจเครื่องดื่ม คาเฟอีน และแอลกอฮอล์ (ยกเว้น "กากเบียร์" / "brewer" ซึ่งเป็นผลพลอยได้ที่แกะกินได้จริง)
+  const isBrewerGrain = lower.includes('กากเบียร์') || lower.includes('brewer');
+  const isAlcoholicBeer =
+    !isBrewerGrain && (lower.includes('เบียร์') || /\bbeer\b/.test(lower));
+  if (
+    isAlcoholicBeer ||
+    BEVERAGE_AND_ALCOHOL_KEYWORDS.some(kw => lower.includes(kw))
+  ) {
+    return {
+      isValid: false,
+      blockedCategory: 'beverages',
+      reasonTh: `"${cleaned}" เป็นเครื่องดื่ม คาเฟอีน หรือแอลกอฮอล์ แกะไม่สามารถบริโภคได้ (หากต้องการเพิ่มกากจากการผลิตเบียร์ ให้ระบุว่า "กากเบียร์เปียกสด" หรือ "กากเบียร์แห้ง")`,
+    };
+  }
+
+  // 3. ตรวจเนื้อสัตว์และอาหารทะเล (ยกเว้น "เปลือกหอย" ที่เป็นแคลเซียม)
+  if (MEAT_AND_SEAFOOD_KEYWORDS.some(kw => lower.includes(kw))) {
+    return {
+      isValid: false,
+      blockedCategory: 'meat_animal',
+      reasonTh: `"${cleaned}" เป็นเนื้อสัตว์หรืออาหารทะเล แกะเป็นสัตว์เคี้ยวเอื้องกินพืช ไม่สามารถใช้อาหารกลุ่มนี้ได้`,
+    };
+  }
+
+  // 4. ตรวจอาหารสัตว์ชนิดอื่น (โดยเฉพาะอาหารสุกร/วัว/สัตว์ปีกที่มักมีทองแดงสูงเกินระดับปลอดภัยของแกะ)
+  if (OTHER_ANIMAL_FEED_KEYWORDS.some(kw => lower.includes(kw))) {
+    return {
+      isValid: false,
+      blockedCategory: 'other_animal_feed',
+      reasonTh: `"${cleaned}" เป็นอาหารสำหรับสัตว์ชนิดอื่น ห้ามนำมาให้แกะ (เสี่ยงพิษทองแดงสะสมในตับของแกะ)`,
+    };
+  }
+
+  // 5. ตรวจพืชพิษและสิ่งปนเปื้อนที่ไม่ใช่อาหารสัตว์
+  if (TOXIC_OR_NON_FEED_KEYWORDS.some(kw => lower.includes(kw))) {
+    return {
+      isValid: false,
+      blockedCategory: 'toxic_to_sheep',
+      reasonTh: `"${cleaned}" จัดเป็นพืชพิษหรือสิ่งที่ไม่ใช่วัตถุดิบอาหารสัตว์ ไม่ปลอดภัยต่อแกะ`,
+    };
+  }
+
+  // 6. ต้องตรงกับฐานข้อมูลกรมปศุสัตว์/NRC หรือมีคำสำคัญในกลุ่มวัตถุดิบอาหารสัตว์เคี้ยวเอื้องจริงเท่านั้น
+  const matchesDb = THAI_FEED_COMPOSITION_DB.some(entry =>
+    entry.keywords.some(kw => lower.includes(kw.toLowerCase()))
+  );
+  const matchesFeedKeyword = RECOGNIZED_RUMINANT_FEED_KEYWORDS.some(kw =>
+    lower.includes(kw.toLowerCase())
+  );
+
+  if (!matchesDb && !matchesFeedKeyword) {
+    return {
+      isValid: false,
+      blockedCategory: 'unrecognized',
+      reasonTh: `"${cleaned}" ไม่ใช่วัตถุดิบอาหารแกะที่รู้จัก กรุณาระบุชื่อพืชอาหารสัตว์ ธัญพืช ผลพลอยได้เกษตร หรือแร่ธาตุที่แกะกินได้จริง (เช่น หญ้ารูซี่, ฟางข้าว, ใบหม่อน, กากถั่วเหลือง, ข้าวโพดบด)`,
+    };
+  }
+
+  return { isValid: true };
+}
+
 /**
  * คำนวณคุณค่าสารอาหาร (% DM, % CP, % TDN, % Ca, % P) และจัดหมวดหมู่อัตโนมัติจากชื่อวัตถุดิบ
  */
 export function resolveIngredientFromName(rawName: string): ResolvedIngredientData {
   const cleaned = rawName.trim();
   const lower = cleaned.toLowerCase();
+  const validation = validateSheepFeedIngredient(cleaned);
+
+  if (!validation.isValid) {
+    return {
+      nameTh: cleaned,
+      nameEn: `${cleaned} (Not Valid Sheep Feed)`,
+      category: 'byproduct',
+      dryMatter: 0,
+      crudeProtein: 0,
+      tdn: 0,
+      calcium: 0,
+      phosphorus: 0,
+      pricePerKg: 0,
+      isRoughage: false,
+      description: validation.reasonTh || 'ไม่สามารถใช้เป็นวัตถุดิบอาหารแกะได้',
+      sourceLabel: 'ไม่ผ่านเกณฑ์คัดกรองวัตถุดิบอาหารแกะ',
+      matchedFromDatabase: false,
+      isValidForSheep: false,
+      rejectionReason: validation.reasonTh,
+    };
+  }
 
   // 1. ค้นหาจากฐานข้อมูลมาตรฐานกรมปศุสัตว์ / NRC (เรียงคำค้นที่จำเพาะกว่าไว้ด้านบนแล้ว)
   for (const entry of THAI_FEED_COMPOSITION_DB) {
@@ -664,6 +1138,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
         description: entry.description,
         sourceLabel: 'อ้างอิงค่ามาตรฐานกรมปศุสัตว์ / NRC',
         matchedFromDatabase: true,
+        isValidForSheep: true,
       };
     }
   }
@@ -696,13 +1171,13 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มวิตามินและแร่ธาตุเสริมสำหรับแกะ (ตรวจสอบให้ปลอดทองแดงก่อนใช้)',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มวิตามินและแร่ธาตุ)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
   if (
     lower.includes('ถั่ว') ||
     lower.includes('กระถิน') ||
-    lower.includes('ปลาป่น') ||
     lower.includes('ยีสต์') ||
     lower.includes('โปรตีน') ||
     lower.includes('protein') ||
@@ -724,6 +1199,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มอาหารให้โปรตีนสำหรับสร้างกล้ามเนื้อ น้ำนม และเส้นใยขน',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มอาหารให้โปรตีน)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
@@ -742,6 +1218,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มพืชหมักไซเลจ ให้เยื่อใยและพลังงานย่อยได้ปานกลาง',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มพืชหมัก)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
@@ -760,6 +1237,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มอาหารหยาบแห้ง เก็บได้นานและกระตุ้นการเคี้ยวเอื้อง',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มหญ้า/ฟางแห้ง)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
@@ -769,7 +1247,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
     lower.includes('ต้น') ||
     lower.includes('ยอด') ||
     lower.includes('ผัก') ||
-    lower.includes('สด') ||
+    lower.includes('เถา') ||
     lower.includes('grass')
   ) {
     return {
@@ -786,6 +1264,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มพืชอาหารสัตว์สด ให้เยื่อใยและพลังงานพื้นฐานสำหรับแกะ',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มอาหารหยาบสด)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
@@ -810,10 +1289,11 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
       description: 'ประมาณการกลุ่มผลพลอยได้เกษตรให้พลังงาน ช่วยลดต้นทุนค่าอาหารในฟาร์ม',
       sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มผลพลอยได้เกษตร)',
       matchedFromDatabase: false,
+      isValidForSheep: true,
     };
   }
 
-  // ค่าเริ่มต้นกลุ่มอาหารให้พลังงาน (ธัญพืช/อาหารข้น/หัวมัน)
+  // ค่าเริ่มต้นเฉพาะกลุ่มธัญพืช/อาหารข้น/หัวมันที่ผ่านการคัดกรองแล้ว
   return {
     nameTh: cleaned,
     nameEn: `${cleaned} (Energy Feed)`,
@@ -828,6 +1308,7 @@ export function resolveIngredientFromName(rawName: string): ResolvedIngredientDa
     description: 'ประมาณการกลุ่มวัตถุดิบอาหารข้นให้พลังงาน สามารถปรับแก้ % โภชนะหรือราคาได้ภายหลัง',
     sourceLabel: 'ประมาณการอัตโนมัติ (กลุ่มอาหารให้พลังงาน)',
     matchedFromDatabase: false,
+    isValidForSheep: true,
   };
 }
 

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { computeLivePens } from './utils/nutrition';
+import { applyActivityLogToSheepList } from './utils/activityHelpers';
 import { Header } from './components/Header';
 import { HomeLanding } from './components/HomeLanding';
 import { BreedsCatalog } from './components/BreedsCatalog';
@@ -794,21 +795,27 @@ export default function App() {
 
   const handleAddLog = (
     newLogData: Omit<FarmLog, 'id'>,
-    updateSheepWeight?: { sheepId: string; newWeight: number }
+    syncMeta?: {
+      sheepId?: string;
+      newWeight?: number;
+      assignedRationId?: string;
+      markPregnantOnBreeding?: boolean;
+    }
   ) => {
     const newLog: FarmLog = {
       ...newLogData,
+      feedRationId: syncMeta?.assignedRationId || newLogData.feedRationId,
       id: `log-${Date.now()}`,
     };
     setLogs(prev => [newLog, ...prev]);
 
-    if (updateSheepWeight) {
-      setSheepList(prev =>
-        prev.map(s =>
-          s.id === updateSheepWeight.sheepId ? { ...s, weightKg: updateSheepWeight.newWeight } : s
-        )
-      );
-    }
+    setSheepList(prev =>
+      applyActivityLogToSheepList(prev, newLog, {
+        assignedRationId: syncMeta?.assignedRationId || newLog.feedRationId,
+        markPregnantOnBreeding: syncMeta?.markPregnantOnBreeding ?? true,
+        previousLogs: logs,
+      })
+    );
   };
 
   const handleDeleteLog = (id: string) => {
@@ -1119,6 +1126,7 @@ export default function App() {
 
             {currentTab === 'dashboard' && activeFarmProfile && (
               <DashboardView
+                pens={livePens}
                 sheepList={sheepList}
                 rations={rations}
                 onSelectRationToEdit={handleSelectRationToEdit}

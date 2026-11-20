@@ -365,17 +365,48 @@ function rationToRow(farmId: string, ration: FormulatedRation) {
   };
 }
 
+const OPTIONAL_NEW_LOG_COLUMNS = [
+  'wool_weight_kg',
+  'wool_body_kg',
+  'wool_skirtings_kg',
+  'wool_staple_length_cm',
+  'wool_micron',
+  'wool_grade',
+  'wool_soundness',
+  'wool_crimp_style',
+  'wool_handle',
+] as const;
+
+function sanitizeLogRowForLegacyDb(row: Record<string, unknown>): Record<string, unknown> {
+  const copy = { ...row };
+  for (const key of OPTIONAL_NEW_LOG_COLUMNS) {
+    delete copy[key];
+  }
+  if (copy.type === 'shearing') {
+    copy.type = 'weight';
+  }
+  return copy;
+}
+
 function mapLogRow(row: Record<string, unknown>): FarmLog {
+  const rawType = String(row.type || 'feeding');
+  const titleStr = String(row.title || '');
+  const resolvedType = (
+    rawType === 'weight' && (row.wool_weight_kg != null || titleStr.includes('ตัดขน'))
+      ? 'shearing'
+      : rawType
+  ) as FarmLog['type'];
+
   return {
     id: String(row.id),
     date: String(row.date || ''),
     time: row.time ? String(row.time) : undefined,
-    type: String(row.type || 'feeding') as FarmLog['type'],
+    type: resolvedType,
     sheepId: row.sheep_id ? String(row.sheep_id) : undefined,
     sheepEarTag: row.sheep_ear_tag ? String(row.sheep_ear_tag) : undefined,
     penId: row.pen_id ? String(row.pen_id) : undefined,
     penName: row.pen_name ? String(row.pen_name) : undefined,
-    title: String(row.title || ''),
+    title: titleStr,
     recordedBy: String(row.recorded_by || ''),
     weightKg: row.weight_kg != null ? Number(row.weight_kg) : undefined,
     feedRationName: row.feed_ration_name ? String(row.feed_ration_name) : undefined,
@@ -392,6 +423,18 @@ function mapLogRow(row: Record<string, unknown>): FarmLog {
     lambCount: row.lamb_count != null ? Number(row.lamb_count) : undefined,
     lambGenders: row.lamb_genders ? String(row.lamb_genders) : undefined,
     lambSurvivalRate: row.lamb_survival_rate ? String(row.lamb_survival_rate) : undefined,
+    woolWeightKg: row.wool_weight_kg != null ? Number(row.wool_weight_kg) : undefined,
+    woolBodyKg: row.wool_body_kg != null ? Number(row.wool_body_kg) : undefined,
+    woolSkirtingsKg: row.wool_skirtings_kg != null ? Number(row.wool_skirtings_kg) : undefined,
+    woolStapleLengthCm:
+      row.wool_staple_length_cm != null ? Number(row.wool_staple_length_cm) : undefined,
+    woolMicron: row.wool_micron != null ? Number(row.wool_micron) : undefined,
+    woolGrade: row.wool_grade ? String(row.wool_grade) : undefined,
+    woolSoundness: row.wool_soundness ? (String(row.wool_soundness) as FarmLog['woolSoundness']) : undefined,
+    woolCrimpStyle: row.wool_crimp_style
+      ? (String(row.wool_crimp_style) as FarmLog['woolCrimpStyle'])
+      : undefined,
+    woolHandle: row.wool_handle ? (String(row.wool_handle) as FarmLog['woolHandle']) : undefined,
     notes: row.notes ? String(row.notes) : undefined,
   };
 }
@@ -422,6 +465,16 @@ function logToRow(farmId: string, log: FarmLog) {
     lamb_count: log.lambCount != null ? Math.round(Number(log.lambCount)) : null,
     lamb_genders: log.lambGenders ?? null,
     lamb_survival_rate: log.lambSurvivalRate ?? null,
+    wool_weight_kg: log.woolWeightKg != null ? Number(log.woolWeightKg) : null,
+    wool_body_kg: log.woolBodyKg != null ? Number(log.woolBodyKg) : null,
+    wool_skirtings_kg: log.woolSkirtingsKg != null ? Number(log.woolSkirtingsKg) : null,
+    wool_staple_length_cm:
+      log.woolStapleLengthCm != null ? Number(log.woolStapleLengthCm) : null,
+    wool_micron: log.woolMicron != null ? Number(log.woolMicron) : null,
+    wool_grade: log.woolGrade ?? null,
+    wool_soundness: log.woolSoundness ?? null,
+    wool_crimp_style: log.woolCrimpStyle ?? null,
+    wool_handle: log.woolHandle ?? null,
     notes: log.notes ?? null,
   };
 }
@@ -686,6 +739,15 @@ async function syncScopedTableRows<T extends { id: string }>(
         upsertRes = await supabase
           .from(table)
           .upsert(slice.map(stripOptionalNewSheepColumns), { onConflict });
+      }
+      if (
+        upsertRes.error &&
+        table === 'farm_logs' &&
+        (isMissingColumnError(upsertRes.error) || upsertRes.error.code === '23514')
+      ) {
+        upsertRes = await supabase
+          .from(table)
+          .upsert(slice.map(sanitizeLogRowForLegacyDb), { onConflict });
       }
       if (upsertRes.error) {
         throw new Error(`Sync ${table} upsert failed: ${upsertRes.error.message}`);

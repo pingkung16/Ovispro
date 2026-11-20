@@ -37,6 +37,7 @@ import {
 } from '../utils/nutrition';
 import {
   resolveIngredientFromName,
+  validateSheepFeedIngredient,
   QUICK_INGREDIENT_SUGGESTIONS,
 } from '../data/feedCompositionLookup';
 
@@ -157,6 +158,16 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
   const [assignToPenOnSave, setAssignToPenOnSave] = useState<boolean>(true);
   const [showQuickAddIngredient, setShowQuickAddIngredient] = useState<boolean>(false);
   const [quickIngName, setQuickIngName] = useState<string>('');
+
+  const quickIngValidation = useMemo(() => {
+    if (!quickIngName.trim()) return null;
+    return validateSheepFeedIngredient(quickIngName);
+  }, [quickIngName]);
+
+  const quickIngPreview = useMemo(() => {
+    if (!quickIngName.trim()) return null;
+    return resolveIngredientFromName(quickIngName);
+  }, [quickIngName]);
 
   const activePen = useMemo(() => {
     if (selectedPenId === 'custom') return null;
@@ -354,6 +365,9 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
     const trimmed = quickIngName.trim();
     if (!trimmed) return;
 
+    const validation = validateSheepFeedIngredient(trimmed);
+    if (!validation.isValid) return;
+
     const existing = ingredients.find(
       i => i.nameTh.trim().toLowerCase() === trimmed.toLowerCase()
     );
@@ -361,6 +375,7 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
     let addedIng: FeedIngredient | null = existing || null;
     if (!addedIng && onAddIngredientAndUse) {
       const resolved = resolveIngredientFromName(trimmed);
+      if (!resolved.isValidForSheep) return;
       addedIng = onAddIngredientAndUse({
         nameTh: trimmed,
         nameEn: resolved.nameEn,
@@ -947,7 +962,11 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
             {showQuickAddIngredient && (
               <form
                 onSubmit={handleQuickAddNewIngredient}
-                className="bg-[#FFFDF9] border border-[#C5DEC9] rounded-xl p-3 space-y-2.5"
+                className={`bg-[#FFFDF9] border rounded-xl p-3 space-y-2.5 ${
+                  quickIngValidation && !quickIngValidation.isValid
+                    ? 'border-[#E8C5C0]'
+                    : 'border-[#C5DEC9]'
+                }`}
               >
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -955,16 +974,40 @@ export const FeedCalculator: React.FC<FeedCalculatorProps> = ({
                     required
                     value={quickIngName}
                     onChange={e => setQuickIngName(e.target.value)}
-                    placeholder="พิมพ์ชื่อวัตถุดิบที่มี เช่น ใบหม่อนสด, กากมะพร้าว, ฟางข้าว..."
+                    placeholder="พิมพ์ชื่อวัตถุดิบอาหารแกะ เช่น ใบหม่อนสด, กากมะพร้าว, ฟางข้าว..."
                     className="flex-1 px-3 py-2 text-xs bg-[#FAF6EE] border border-[#DFCBB3] rounded-lg focus:outline-none focus:border-[#1E3F2B]"
                   />
                   <button
                     type="submit"
-                    className="bg-[#1E3F2B] hover:bg-[#29533A] text-[#FAF6EE] px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer shrink-0"
+                    disabled={Boolean(quickIngValidation && !quickIngValidation.isValid)}
+                    className="bg-[#1E3F2B] hover:bg-[#29533A] disabled:opacity-45 disabled:cursor-not-allowed text-[#FAF6EE] px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer shrink-0"
                   >
                     เพิ่มเข้าคลังและคำนวณสัดส่วน
                   </button>
                 </div>
+
+                {quickIngValidation && !quickIngValidation.isValid && (
+                  <div
+                    role="alert"
+                    className="bg-[#FCEFED] border border-[#E8C5C0] rounded-lg px-3 py-2 text-[11px] text-[#8A3B2D] flex items-start gap-2"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-[#A63D2E] shrink-0 mt-0.5" />
+                    <span>{quickIngValidation.reasonTh}</span>
+                  </div>
+                )}
+
+                {quickIngPreview && quickIngPreview.isValidForSheep && (
+                  <div className="bg-[#EDF4EF] border border-[#C5DEC9] rounded-lg px-3 py-1.5 text-[11px] text-[#1E3F2B] flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#2E6B47]" />
+                      <span>ผ่านการคัดกรองอาหารแกะ: {quickIngPreview.nameTh}</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#2E6B47]">
+                      DM {quickIngPreview.dryMatter}% · CP {quickIngPreview.crudeProtein}% · TDN {quickIngPreview.tdn}%
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-1.5 items-center">
                   <span className="text-[11px] text-[#6E6254]">เลือกด่วน:</span>
                   {QUICK_INGREDIENT_SUGGESTIONS.slice(0, 6).map(sample => (

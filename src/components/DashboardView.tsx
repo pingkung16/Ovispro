@@ -13,11 +13,14 @@ import {
   Leaf,
   Dna,
   ArrowRight,
+  Layers,
 } from 'lucide-react';
-import { FormulatedRation, Sheep } from '../types/sheep';
+import { FormulatedRation, Pen, Sheep } from '../types/sheep';
 import { getBreedPhoto } from '../data/breedPhotos';
+import { computePenWoolStats } from '../utils/nutrition';
 
 interface DashboardViewProps {
+  pens?: Pen[];
   sheepList: Sheep[];
   rations: FormulatedRation[];
   onSelectRationToEdit?: (ration: FormulatedRation) => void;
@@ -25,6 +28,7 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
+  pens: propPens,
   sheepList,
   rations,
   onNavigateToTab,
@@ -47,17 +51,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
     });
 
-    const totalWoolYieldKg = Number(
-      sheepList.reduce((sum, s) => sum + (s.fleeceYieldKg || 0), 0).toFixed(1)
-    );
-    const sheepWithMicron = sheepList.filter(s => s.woolMicron);
-    const avgMicron =
-      sheepWithMicron.length > 0
-        ? (
-            sheepWithMicron.reduce((sum, s) => sum + (s.woolMicron || 0), 0) /
-            sheepWithMicron.length
-          ).toFixed(1)
-        : '22.0';
+    const farmWoolStats = computePenWoolStats(sheepList);
+
+    // Derive pen groups cleanly (either from live pens or grouped from sheepList)
+    const derivedPens: { id: string; code: string; name: string }[] =
+      propPens && propPens.length > 0
+        ? propPens.map(p => ({ id: p.id, code: p.code, name: p.name }))
+        : Array.from(
+            new Map(
+              sheepList.map(s => [
+                s.penId || s.pen,
+                { id: s.penId || s.pen, code: s.pen || s.penId, name: s.pen || s.penId },
+              ])
+            ).values()
+          );
+
+    const penWoolSummaries = derivedPens.map(pen => {
+      const sheepInPen = sheepList.filter(s => s.penId === pen.id || s.pen === pen.code);
+      return {
+        ...pen,
+        wool: computePenWoolStats(sheepInPen),
+      };
+    });
 
     const breedMap = new Map<string, { breed: string; count: number; pens: Set<string> }>();
     sheepList.forEach(s => {
@@ -89,11 +104,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       totalAsFedDailyKg: totalAsFedDailyKg.toFixed(1),
       totalDailyCost: Math.round(totalDailyCost),
       totalMonthlyCost: Math.round(totalDailyCost * 30),
-      totalWoolYieldKg,
-      avgMicron,
+      farmWoolStats,
+      penWoolSummaries,
       breedBreakdown,
     };
-  }, [sheepList, rations]);
+  }, [sheepList, rations, propPens]);
 
   return (
     <div className="space-y-8">
@@ -105,10 +120,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>6. สรุปต้นทุน-ผลผลิตขนประจำฟาร์ม ({stats.totalSheep} ตัว)</span>
           </p>
           <h2 className="text-2xl sm:text-3xl font-semibold text-[#1E3F2B] tracking-tight">
-            ภาพรวมปริมาณอาหาร ต้นทุนรายวัน และผลผลิตตัดขนต่อปี
+            ภาพรวมปริมาณอาหาร ต้นทุนรายวัน และผลผลิตขนแกะรายคอก
           </h2>
           <p className="text-xs sm:text-sm text-[#6E6254] max-w-2xl leading-relaxed">
-            สรุป 3 ตัวชี้วัดหลักสำหรับเจ้าของฟาร์ม เพื่อวางแผนจัดซื้อวัตถุดิบ คุมงบค่าอาหารรายวัน และประเมินผลผลิตเส้นใยขนแกะประจำปี
+            สรุปตัวชี้วัดหลักสำหรับเจ้าของฟาร์ม ทั้งปริมาณอาหาร ค่าอาหารรายวัน และค่าเฉลี่ยน้ำหนัก-คุณภาพขนแกะทั้งฟาร์มและรายคอก
           </p>
         </div>
 
@@ -149,7 +164,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-sm font-medium text-[#5C5346]">กก./วัน</span>
             </div>
             <p className="text-xs text-[#6E6254] mt-2 leading-relaxed">
-              รวมอาหารหยาบและอาหารข้นสำหรับแกะขนทั้งหมด {stats.totalSheep} ตัวในคอก A–D
+              รวมอาหารหยาบและอาหารข้นสำหรับแกะขนทั้งหมด {stats.totalSheep} ตัวในฟาร์ม
             </p>
           </div>
         </div>
@@ -189,17 +204,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* 3. ผลผลิตตัดขนต่อปี */}
+        {/* 3. ผลผลิตตัดขนและคุณภาพขนเฉลี่ยทั้งฟาร์ม */}
         <div className="relative overflow-hidden bg-[#FFFDF9] rounded-2xl border-2 border-[#4A321F]/25 p-6 sm:p-7 flex flex-col justify-between space-y-5 shadow-xs">
           <div className="h-1.5 w-full wood-grain-surface rounded-full" />
           <div className="flex items-start justify-between gap-3">
             <div>
               <span className="text-xs font-semibold text-[#6E4826] flex items-center gap-1.5">
                 <Leaf className="w-3.5 h-3.5 text-[#2E6B47]" />
-                <span>ผลผลิตเส้นใยขนทั้งฟาร์ม</span>
+                <span>ผลผลิตขนแกะทั้งฟาร์ม ({stats.farmWoolStats.recordedWeightCount}/{stats.totalSheep} ตัว)</span>
               </span>
               <h3 className="text-lg font-semibold text-[#1E3F2B] mt-1">
-                ผลผลิตตัดขนต่อปี
+                น้ำหนักขนรวมและค่าเฉลี่ยฝูง
               </h3>
             </div>
             <div className="w-11 h-11 rounded-xl bg-[#FAF6EE] border border-[#DFCBB3] flex items-center justify-center shrink-0">
@@ -207,20 +222,125 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[#EAE2D0]">
+          <div className="pt-2 border-t border-[#EAE2D0] space-y-1.5">
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-semibold font-mono text-[#4A321F]">
-                {stats.totalWoolYieldKg}
+                {stats.farmWoolStats.totalWoolKg}
               </span>
-              <span className="text-sm font-medium text-[#5C5346]">กก./ปี</span>
+              <span className="text-sm font-medium text-[#5C5346]">กก. (รวมทั้งฟาร์ม)</span>
             </div>
-            <p className="text-xs text-[#6E6254] mt-2 leading-relaxed">
-              ความละเอียดเส้นใยเฉลี่ยทั้งฝูง{' '}
-              <strong className="text-[#9C6B3F] font-mono">{stats.avgMicron} µm</strong>
-            </p>
+            <div className="text-xs text-[#6E6254] flex flex-wrap gap-x-3 gap-y-1 leading-relaxed">
+              <span>
+                เฉลี่ย{' '}
+                <strong className="text-[#1E3F2B] font-mono">
+                  {stats.farmWoolStats.avgWoolKg != null ? `${stats.farmWoolStats.avgWoolKg} กก./ตัว` : '-'}
+                </strong>
+              </span>
+              <span>
+                · ไมครอนเฉลี่ย{' '}
+                <strong className="text-[#9C6B3F] font-mono">
+                  {stats.farmWoolStats.avgMicron != null ? `${stats.farmWoolStats.avgMicron} µm` : '-'}
+                </strong>
+              </span>
+              <span>
+                · ช่อขนเฉลี่ย{' '}
+                <strong className="text-[#2E6B47] font-mono">
+                  {stats.farmWoolStats.avgStapleCm != null ? `${stats.farmWoolStats.avgStapleCm} ซม.` : '-'}
+                </strong>
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Pen-by-Pen Wool Overview Section */}
+      <section className="bg-[#FFFDF9] rounded-2xl border-2 border-[#4A321F]/25 p-6 sm:p-7 space-y-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EAE2D0]">
+          <div>
+            <p className="text-xs font-semibold text-[#9C6B3F] flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#1E3F2B]" />
+              <span>ข้อมูลภาพรวมขนแกะเฉลี่ยรายคอก (Pen Wool Overview)</span>
+            </p>
+            <h3 className="text-lg sm:text-xl font-semibold text-[#1E3F2B] mt-1">
+              น้ำหนักขนเฉลี่ย ความยาวช่อขน ไมครอน และความแข็งแรงแยกตามคอก
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('logs')}
+            className="text-xs font-semibold text-[#1E3F2B] hover:text-[#4A321F] flex items-center gap-1.5 cursor-pointer transition-colors self-start sm:self-auto"
+          >
+            <span>ไปบันทึกน้ำหนักขนเพิ่มในหน้ากิจกรรม</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {stats.penWoolSummaries.length === 0 ? (
+          <p className="text-sm text-[#6E6254] py-4 text-center">ยังไม่มีข้อมูลคอกและขนแกะ</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.penWoolSummaries.map(pen => (
+              <div
+                key={pen.id}
+                className="rounded-2xl border border-[#DFCBB3] bg-[#FAF6EE] p-4 sm:p-5 space-y-3 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-base font-semibold text-[#1E3F2B]">{pen.code}</span>
+                    <span className="text-xs font-mono font-semibold text-[#9C6B3F]">
+                      {pen.wool.totalSheep} ตัว
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#6E6254] line-clamp-1 mt-0.5">{pen.name}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#EAE2D0] text-xs">
+                  <div className="bg-[#FFFDF9] rounded-xl p-2.5 border border-[#EAE2D0]">
+                    <span className="text-[10px] text-[#7D7061] block">น้ำหนักขนเฉลี่ย</span>
+                    <strong className="font-mono text-sm font-semibold text-[#4A321F] block mt-0.5">
+                      {pen.wool.avgWoolKg != null ? `${pen.wool.avgWoolKg} กก.` : 'ยังไม่บันทึก'}
+                    </strong>
+                    <span className="text-[10px] text-[#8C7F6E] block">
+                      รวม {pen.wool.totalWoolKg} กก.
+                    </span>
+                  </div>
+
+                  <div className="bg-[#FFFDF9] rounded-xl p-2.5 border border-[#EAE2D0]">
+                    <span className="text-[10px] text-[#7D7061] block">ไมครอนเฉลี่ย</span>
+                    <strong className="font-mono text-sm font-semibold text-[#1E3F2B] block mt-0.5">
+                      {pen.wool.avgMicron != null ? `${pen.wool.avgMicron} µm` : '-'}
+                    </strong>
+                    <span className="text-[10px] text-[#8C7F6E] truncate block">
+                      {pen.wool.dominantGrade || 'ไม่ระบุเกรด'}
+                    </span>
+                  </div>
+
+                  <div className="bg-[#FFFDF9] rounded-xl p-2.5 border border-[#EAE2D0]">
+                    <span className="text-[10px] text-[#7D7061] block">ช่อขนเฉลี่ย</span>
+                    <strong className="font-mono text-sm font-semibold text-[#2E6B47] block mt-0.5">
+                      {pen.wool.avgStapleCm != null ? `${pen.wool.avgStapleCm} ซม.` : '-'}
+                    </strong>
+                    <span className="text-[10px] text-[#8C7F6E] block">
+                      {pen.wool.recordedStapleCount}/{pen.wool.totalSheep} ตัว
+                    </span>
+                  </div>
+
+                  <div className="bg-[#FFFDF9] rounded-xl p-2.5 border border-[#EAE2D0]">
+                    <span className="text-[10px] text-[#7D7061] block">ความแข็งแรงขน</span>
+                    <strong className="font-mono text-sm font-semibold text-[#9C6B3F] block mt-0.5">
+                      {pen.wool.strongPct != null ? `${pen.wool.strongPct}% ดี` : '-'}
+                    </strong>
+                    <span className="text-[10px] text-[#8C7F6E] block">
+                      ลอนถี่ {pen.wool.denseCrimpCount} ตัว
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Farm Breed Breakdown & Headcount Section */}
       <section className="bg-[#FFFDF9] rounded-2xl border-2 border-[#4A321F]/25 p-6 sm:p-7 space-y-5 shadow-xs">
@@ -295,3 +415,4 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     </div>
   );
 };
+
